@@ -111,12 +111,9 @@ def run_nmap(ip, output_path):
     console.print(f"[*] Scanning (fast discovery) on [bold yellow]{ip}[/]...", style="cyan")
 
     disc_cmd = [
-        "nmap", "-n", "-T4", "-Pn", "-p-",
-        "--max-retries", "2",
-        "--host-timeout", "15m",
-        "-sS",
-        ip, "-oG", greppable
-    ]
+            "nmap", "-n", "-T4", "-Pn", "-p-",
+            ip, "-oG", greppable
+        ]
     _run(disc_cmd)
     open_ports = _parse_greppable(greppable)
 
@@ -124,7 +121,6 @@ def run_nmap(ip, output_path):
         console.print("[yellow]No ports found, retrying discovery with higher retries…[/yellow]")
         disc_cmd_retry = [
             "nmap", "-n", "-T4", "-Pn", "-p-",
-            "--max-retries", "4",
             "--max-rtt-timeout", "1000ms",
             "-sS",
             ip, "-oG", greppable
