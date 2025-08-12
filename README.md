@@ -30,7 +30,13 @@ pip install .
 Launch the interactive menu:
 
 ```bash
-python3 empusa.py
+empusa
+```
+
+or via python:
+
+```bash
+python -m empusa
 ```
 
 ### Main Menu
@@ -62,11 +68,12 @@ python3 empusa.py
 - `searchsploit` and `nmap` must be installed and on `PATH`.
 - Use responsibly and only where you have explicit authorization.
 
-## 🛠 Development
+
+## Development
 
 ```bash
 make lint   # if you add a linter
-python3 empusa.py  # dev run
+python -m empusa  # dev run
 ```
 
 ## License
