@@ -86,19 +86,30 @@ def search_exploits_from_nmap(nmap_file):
     console.print(f"[green][+] Saved exploit suggestions to:[/] {exploit_log}")
 
 def run_nmap(ip, output_path):
-    """
-    Faster two-phase scan:
-      1) Discover open TCP ports quickly (no DNS, few retries)
-      2) Enrich only discovered ports (light versioning + short NSE timeout)
-    Writes final results to full_scan.txt (same as before) and per-port files.
-    """
+
     os.makedirs(output_path, exist_ok=True)
     output_file = os.path.join(output_path, "full_scan.txt")
     greppable = os.path.join(output_path, "ports_grep.txt")
 
+    def _run(cmd):
+        return subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    def _parse_greppable(path):
+        ports = set()
+        rx = re.compile(r'(\d+)/open/(?:tcp|udp)', re.IGNORECASE)
+        try:
+            with open(path, "r", errors="ignore") as f:
+                for line in f:
+                    if "Ports:" not in line:
+                        continue
+                    for m in rx.finditer(line):
+                        ports.add(m.group(1))
+        except FileNotFoundError:
+            pass
+        return sorted(ports, key=int)
+
     console.print(f"[*] Scanning (fast discovery) on [bold yellow]{ip}[/]...", style="cyan")
 
-    # Phase 1: fast discovery
     disc_cmd = [
         "nmap", "-n", "-T4", "-Pn", "-p-",
         "--max-retries", "2",
@@ -106,43 +117,35 @@ def run_nmap(ip, output_path):
         "-sS",
         ip, "-oG", greppable
     ]
-    subprocess.run(disc_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-    # Parse open ports from greppable output
-    open_ports = []
-    try:
-        with open(greppable, "r", errors="ignore") as gf:
-            for line in gf:
-                if "Ports:" not in line:
-                    continue
-                # Extract entries like "22/open/tcp//ssh//"
-                for part in line.split("Ports:")[-1].split(","):
-                    part = part.strip()
-                    if "/open/" in part:
-                        try:
-                            open_ports.append(part.split("/")[0])
-                        except Exception:
-                            pass
-    except FileNotFoundError:
-        pass
+    _run(disc_cmd)
+    open_ports = _parse_greppable(greppable)
 
     if not open_ports:
-        with open(output_file, "w") as f:
-            f.write(f"# Host: {ip}\n# No open TCP ports discovered (discovery phase).\n")
-        return ip, output_file
+        console.print("[yellow]No ports found, retrying discovery with higher retries…[/yellow]")
+        disc_cmd_retry = [
+            "nmap", "-n", "-T4", "-Pn", "-p-",
+            "--max-retries", "4",
+            "--max-rtt-timeout", "1000ms",
+            "-sS",
+            ip, "-oG", greppable
+        ]
+        _run(disc_cmd_retry)
+        open_ports = _parse_greppable(greppable)
 
-    ports_csv = ",".join(sorted(set(open_ports), key=int))
-
-    console.print(f"[*] Enriching {ip} (ports: {ports_csv})...", style="cyan")
-
-    enrich_cmd = [
-        "nmap", "-n", "-T4", "-Pn",
-        "-sV", "--version-light",
-        "--script-timeout", "5s",
-        "-p", ports_csv,
-        ip, "-oN", output_file
-    ]
-    subprocess.run(enrich_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if not open_ports:
+        console.print("[red]Discovery still empty. Falling back to -A (full) so you get results.[/red]")
+        _run(["nmap", "-A", "-T4", "-Pn", "-p-", ip, "-oN", output_file])
+    else:
+        ports_csv = ",".join(open_ports)
+        console.print(f"[*] Enriching {ip} (ports: {ports_csv})...", style="cyan")
+        enrich_cmd = [
+            "nmap", "-n", "-T4", "-Pn",
+            "-sV", "--version-light",
+            "--script-timeout", "5s",
+            "-p", ports_csv,
+            ip, "-oN", output_file
+        ]
+        _run(enrich_cmd)
 
     ports_dir = os.path.join(output_path, "ports")
     os.makedirs(ports_dir, exist_ok=True)
@@ -151,7 +154,6 @@ def run_nmap(ip, output_path):
     nmap_line = re.compile(r'(\d+)/(tcp|udp)\s+open\s+([\w\-\._]+)(\s+(.*))?')
     with open(output_file, 'r', errors='ignore') as f:
         lines = f.readlines()
-
     for line in lines:
         match = nmap_line.search(line)
         if not match:
