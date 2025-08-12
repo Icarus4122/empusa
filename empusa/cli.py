@@ -86,98 +86,135 @@ def search_exploits_from_nmap(nmap_file):
     console.print(f"[green][+] Saved exploit suggestions to:[/] {exploit_log}")
 
 def run_nmap(ip, output_path):
+    """
+    Faster two-phase scan:
+      1) Discover open TCP ports quickly (no DNS, few retries)
+      2) Enrich only discovered ports (light versioning + short NSE timeout)
+    Writes final results to full_scan.txt (same as before) and per-port files.
+    """
+    os.makedirs(output_path, exist_ok=True)
     output_file = os.path.join(output_path, "full_scan.txt")
-    console.print(f"[*] Running Nmap on [bold yellow]{ip}[/]...", style="cyan")
+    greppable = os.path.join(output_path, "ports_grep.txt")
 
-    subprocess.run([
-        "nmap", "-A", "-T4", "-Pn", "-p-", ip, "-oN", output_file
-    ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    console.print(f"[*] Scanning (fast discovery) on [bold yellow]{ip}[/]...", style="cyan")
+
+    # Phase 1: fast discovery
+    disc_cmd = [
+        "nmap", "-n", "-T4", "-Pn", "-p-",
+        "--max-retries", "2",
+        "--host-timeout", "15m",
+        "-sS",
+        ip, "-oG", greppable
+    ]
+    subprocess.run(disc_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    # Parse open ports from greppable output
+    open_ports = []
+    try:
+        with open(greppable, "r", errors="ignore") as gf:
+            for line in gf:
+                if "Ports:" not in line:
+                    continue
+                # Extract entries like "22/open/tcp//ssh//"
+                for part in line.split("Ports:")[-1].split(","):
+                    part = part.strip()
+                    if "/open/" in part:
+                        try:
+                            open_ports.append(part.split("/")[0])
+                        except Exception:
+                            pass
+    except FileNotFoundError:
+        pass
+
+    if not open_ports:
+        with open(output_file, "w") as f:
+            f.write(f"# Host: {ip}\n# No open TCP ports discovered (discovery phase).\n")
+        return ip, output_file
+
+    ports_csv = ",".join(sorted(set(open_ports), key=int))
+
+    console.print(f"[*] Enriching {ip} (ports: {ports_csv})...", style="cyan")
+
+    enrich_cmd = [
+        "nmap", "-n", "-T4", "-Pn",
+        "-sV", "--version-light",
+        "--script-timeout", "5s",
+        "-p", ports_csv,
+        ip, "-oN", output_file
+    ]
+    subprocess.run(enrich_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     ports_dir = os.path.join(output_path, "ports")
     os.makedirs(ports_dir, exist_ok=True)
     environment = os.path.basename(os.path.dirname(os.path.dirname(output_path)))
 
+    nmap_line = re.compile(r'(\d+)/(tcp|udp)\s+open\s+([\w\-\._]+)(\s+(.*))?')
     with open(output_file, 'r', errors='ignore') as f:
         lines = f.readlines()
 
     for line in lines:
-        match = re.search(r'(\\d+)/(tcp|udp)\\s+open\\s+([\\w\\-\\._]+)(\\s+(.*))?', line)
-        if match:
-            port = match.group(1)
-            proto = match.group(2)
-            service = match.group(3).lower()
-            version_info = match.group(5) if match.group(5) else ""
+        match = nmap_line.search(line)
+        if not match:
+            continue
+        port = match.group(1)
+        proto = match.group(2)
+        service = match.group(3).lower()
+        version_info = match.group(5) if match.group(5) else ""
 
-            filename = f"{port}-{service}.txt"
-            port_file_path = os.path.join(ports_dir, filename)
+        filename = f"{port}-{service}.txt"
+        port_file_path = os.path.join(ports_dir, filename)
 
-            with open(port_file_path, 'w') as pf:
-                # === Header ===
-                pf.write(f"# Environment: {environment}\\n")
-                pf.write(f"# Host: {ip}\\n")
-                pf.write(f"# Port: {port}/{proto}\\n")
-                pf.write(f"# Service: {service}\\n")
-                if version_info:
-                    pf.write(f"# Version: {version_info}\\n")
-                pf.write(f"# Timestamp: {datetime.now().isoformat()}\\n\\n")
-
-                # === Body ===
-                pf.write(line.strip() + "\\n")
-
-                # === Footer ===
-                pf.write("\\n# === Suggested Next Steps ===\\n")
-
-                if service in ["http", "https"]:
-                    pf.write("# - Run dirsearch or gobuster for content discovery\\n")
-                    pf.write("# - Scan with Nikto, Nuclei, or Wapiti for vulnerabilities\\n")
-                    pf.write("# - Loot: robots.txt, config files, login panels, backups\\n")
-                    pf.write("# - Try default creds or admin/admin on CMS\\n")
-
-                elif service == "ssh":
-                    pf.write("# - Check for weak/default SSH credentials\\n")
-                    pf.write("# - Loot: ~/.ssh/id_rsa, authorized_keys, bash_history\\n")
-                    pf.write("# - Post-exploitation: SSH pivot or key reuse\\n")
-
-                elif service in ["smb", "microsoft-ds"]:
-                    pf.write("# - Enum with smbmap, enum4linux-ng, CrackMapExec\\n")
-                    pf.write("# - Loot: shares, SAM/NTDS.dit, SYSVOL, GPP passwords\\n")
-                    pf.write("# - Check for null sessions and guest access\\n")
-
-                elif service == "ftp":
-                    pf.write("# - Check for anonymous login\\n")
-                    pf.write("# - Loot: upload directories, backup archives, creds.txt\\n")
-                    pf.write("# - Post-exploitation: file upload for persistence\\n")
-
-                elif service == "rdp":
-                    pf.write("# - Confirm NLA status and CredSSP vulnerabilities\\n")
-                    pf.write("# - Brute force with Hydra or Crowbar (if permitted)\\n")
-                    pf.write("# - Loot: screenshots, clipboard access, session hijack\\n")
-
-                elif service == "mysql":
-                    pf.write("# - Attempt login with root/root or no password\\n")
-                    pf.write("# - Loot: mysql.user table, sensitive schema dumps\\n")
-                    pf.write("# - Post-exploitation: data exfil or local file read\\n")
-
-                elif service == "telnet":
-                    pf.write("# - WARNING: Telnet is plaintext and sniffable\\n")
-                    pf.write("# - Try common creds: admin:admin, root:root\\n")
-                    pf.write("# - Loot: configs, debug menus, motd banners\\n")
-
-                elif service == "winrm":
-                    pf.write("# - Test with evil-winrm or CrackMapExec\\n")
-                    pf.write("# - Loot: PowerShell history, execution context\\n")
-                    pf.write("# - Post-exploitation: PS credential injection\\n")
-
-                elif service == "ldap":
-                    pf.write("# - Use ldapsearch or nmap --script=ldap* for info leak\\n")
-                    pf.write("# - Loot: usernames, OU structure, domain policies\\n")
-                    pf.write("# - Check for anonymous binds or ASREPRoastable users\\n")
-
-                else:
-                    pf.write("# - Investigate service manually or with nmap scripts\\n")
-                    pf.write("# - Loot: banners, misconfigurations, leaks\\n")
-
-                pf.write("# ============================\\n")
+        with open(port_file_path, 'w') as pf:
+            pf.write(f"# Environment: {environment}\n")
+            pf.write(f"# Host: {ip}\n")
+            pf.write(f"# Port: {port}/{proto}\n")
+            pf.write(f"# Service: {service}\n")
+            if version_info:
+                pf.write(f"# Version: {version_info}\n")
+            pf.write(f"# Timestamp: {datetime.now().isoformat()}\n\n")
+            pf.write(line.strip() + "\n")
+            pf.write("\n# === Suggested Next Steps ===\n")
+            if service in ["http", "https"]:
+                pf.write("# - Run dirsearch or gobuster for content discovery\n")
+                pf.write("# - Scan with Nikto, Nuclei, or Wapiti for vulnerabilities\n")
+                pf.write("# - Loot: robots.txt, config files, login panels, backups\n")
+                pf.write("# - Try default creds or admin/admin on CMS\n")
+            elif service == "ssh":
+                pf.write("# - Check for weak/default SSH credentials\n")
+                pf.write("# - Loot: ~/.ssh/id_rsa, authorized_keys, bash_history\n")
+                pf.write("# - Post-exploitation: SSH pivot or key reuse\n")
+            elif service in ["smb", "microsoft-ds"]:
+                pf.write("# - Enum with smbmap, enum4linux-ng, CrackMapExec\n")
+                pf.write("# - Loot: shares, SAM/NTDS.dit, SYSVOL, GPP passwords\n")
+                pf.write("# - Check for null sessions and guest access\n")
+            elif service == "ftp":
+                pf.write("# - Check for anonymous login\n")
+                pf.write("# - Loot: upload directories, backup archives, creds.txt\n")
+                pf.write("# - Post-exploitation: file upload for persistence\n")
+            elif service == "rdp":
+                pf.write("# - Confirm NLA status and CredSSP vulnerabilities\n")
+                pf.write("# - Brute force with Hydra or Crowbar (if permitted)\n")
+                pf.write("# - Loot: screenshots, clipboard access, session hijack\n")
+            elif service == "mysql":
+                pf.write("# - Attempt login with root/root or no password\n")
+                pf.write("# - Loot: mysql.user table, sensitive schema dumps\n")
+                pf.write("# - Post-exploitation: data exfil or local file read\n")
+            elif service == "telnet":
+                pf.write("# - WARNING: Telnet is plaintext and sniffable\n")
+                pf.write("# - Try common creds: admin:admin, root:root\n")
+                pf.write("# - Loot: configs, debug menus, motd banners\n")
+            elif service == "winrm":
+                pf.write("# - Test with evil-winrm or CrackMapExec\n")
+                pf.write("# - Loot: PowerShell history, execution context\n")
+                pf.write("# - Post-exploitation: PS credential injection\n")
+            elif service == "ldap":
+                pf.write("# - Use ldapsearch or nmap --script=ldap* for info leak\n")
+                pf.write("# - Loot: usernames, OU structure, domain policies\n")
+                pf.write("# - Check for anonymous binds or ASREPRoastable users\n")
+            else:
+                pf.write("# - Investigate service manually or with nmap scripts\n")
+                pf.write("# - Loot: banners, misconfigurations, leaks\n")
+            pf.write("# ============================\n")
 
     return ip, output_file
 
@@ -190,7 +227,7 @@ def summarize_hosts(env_name):
     output_lines = []
     for entry in os.listdir(base_dir):
         full_path = os.path.join(base_dir, entry)
-        if os.path.isdir(full_path) and "-" in entry:  # Expecting IP-OS format
+        if os.path.isdir(full_path) and "-" in entry:
             nmap_file = os.path.join(full_path, "nmap", "full_scan.txt")
             if os.path.exists(nmap_file):
                 with open(nmap_file, 'r', errors='ignore') as f:
@@ -253,12 +290,10 @@ def build_env(env_name, ips):
     passwords_file = os.path.join(base_dir, f"{env_name}-passwords.txt")
     commands_log_file = os.path.join(base_dir, "commands_ran.txt")
 
-    # Create essential files
     open(users_file, 'w').close()
     open(passwords_file, 'w').close()
     open(commands_log_file, 'w').close()
 
-    # Hook up shell command history logging
     shell = os.environ.get("SHELL", "/bin/bash")
     rc_file = os.path.expanduser("~/.bashrc" if "bash" in shell else "~/.zshrc")
 
@@ -318,7 +353,6 @@ setopt SHARE_HISTORY
             os.rename(old_path, new_path)
             console.print(f"[+] {ip} classified as {os_type} -> {new_path}", style="green")
 
-    # Log the environment creation command
     with open(commands_log_file, "a") as f:
         f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Built environment '{env_name}' with IPs: {', '.join(ips)}\\n")
 
@@ -421,7 +455,7 @@ def generate_hashcat_rules():
         if pw.islower(): pw_rules.add("l")
         if pw.isupper(): pw_rules.add("u")
         if pw.istitle(): pw_rules.add("c")
-        if re.search(r"[A-Z][a-z]+[A-Z]", pw): pw_rules.add("c")  # CamelCase or mixed case
+        if re.search(r"[A-Z][a-z]+[A-Z]", pw): pw_rules.add("c")
 
         # Reverse detection
         if pw[::-1] in passwords: pw_rules.add("r")
@@ -510,7 +544,6 @@ def main_menu():
             console.print("[bold red]Invalid choice. Try again.[/bold red]")
 
 def main():
-    # argparse entrypoint so `empusa` can be invoked non-interactively later
     parser = argparse.ArgumentParser(prog="empusa", description="Empusa – Recon & Exploitation Automation")
     parser.add_argument("--menu", action="store_true", help="Launch interactive menu (default)")
     args = parser.parse_args()
