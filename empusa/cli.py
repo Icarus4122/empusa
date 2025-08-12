@@ -111,7 +111,7 @@ def run_nmap(ip, output_path):
     console.print(f"[*] Scanning (fast discovery) on [bold yellow]{ip}[/]...", style="cyan")
 
     disc_cmd = [
-            "nmap", "-n", "-T4", "-Pn", "-p-",
+            "nmap", "-n", "-T4", "-Pn", "-A",
             ip, "-oG", greppable
         ]
     _run(disc_cmd)
@@ -120,7 +120,7 @@ def run_nmap(ip, output_path):
     if not open_ports:
         console.print("[yellow]No ports found, retrying discovery with higher retries…[/yellow]")
         disc_cmd_retry = [
-            "nmap", "-n", "-T4", "-Pn", "-p-",
+            "nmap", "-n", "-T5", "-Pn", "-p-",
             "--max-rtt-timeout", "1000ms",
             "-sS",
             ip, "-oG", greppable
@@ -130,7 +130,7 @@ def run_nmap(ip, output_path):
 
     if not open_ports:
         console.print("[red]Discovery still empty. Falling back to -A (full) so you get results.[/red]")
-        _run(["nmap", "-A", "-T4", "-Pn", "-p-", ip, "-oN", output_file])
+        _run(["nmap", "-A", "-T5", "-Pn", "-p-", ip, "-oN", output_file])
     else:
         ports_csv = ",".join(open_ports)
         console.print(f"[*] Enriching {ip} (ports: {ports_csv})...", style="cyan")
