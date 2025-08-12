@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "empusa"
+version = "1.0.0"
+description = "Shape-shifting recon & exploitation framework for OSCP-style workflows."
+authors = [{name = "Amos Parker"}]
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "rich>=13.0.0"
+]
+license = { text = "MIT" }
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Environment :: Console",
+    "Topic :: Security"
+]
+
+[project.scripts]
+empusa = "empusa.cli:main"
+
+[tool.setuptools.packages.find]
+where = [""]
+include = ["empusa*"]
