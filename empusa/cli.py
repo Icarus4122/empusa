@@ -670,66 +670,168 @@ def generate_hashcat_rules() -> None:
         console.print(f"[red]Error reading password file: {e}[/red]")
         return
 
-    rule_counter = Counter()
-
-    for pw in passwords:
-        pw_rules = set()
-
-        # Case patterns
-        if pw.islower(): pw_rules.add("l")
-        if pw.isupper(): pw_rules.add("u")
-        if pw.istitle(): pw_rules.add("c")
-        if re.search(r"[A-Z][a-z]+[A-Z]", pw): pw_rules.add("c")
-
-        # Reverse detection
-        if pw[::-1] in passwords: pw_rules.add("r")
-
-        # Digit patterns
-        if any(char.isdigit() for char in pw): pw_rules.add("$1")
-        if pw[-1:].isdigit(): pw_rules.add("$" + pw[-1])
-        if pw[-3:].isdigit(): pw_rules.add("$" + pw[-3:])
-        if pw.istitle() and pw[-1:].isdigit(): pw_rules.add("c$1")
-
-        # Symbol endings
-        if pw[-1:] in "!@#$%^&*()": pw_rules.add("$" + pw[-1])
-
-        # Year pattern detection (1900–2029)
-        if re.search(r"(19|20)[0-9]{2}", pw): pw_rules.add("$2023")
-
-        # Repeated characters
-        if re.search(r"(.)\1{2,}", pw): pw_rules.add("d")
-
-        # Keyboard walk patterns
-        if any(x in pw.lower() for x in ["qwe", "asd", "zxc", "123", "789"]): pw_rules.add("d")
-
-        # Common leetspeak
-        if "@" in pw or "4" in pw: pw_rules.add("sa@")
-        if "3" in pw: pw_rules.add("se3")
-        if "1" in pw or "!" in pw: pw_rules.add("sl1")
-        if "0" in pw: pw_rules.add("so0")
-        if "5" in pw: pw_rules.add("ss5")
-        if "7" in pw: pw_rules.add("st7")
-
-        # Prefix/suffix common admin words
-        common_words = ["admin", "test", "guest", "temp", "root"]
-        if any(pw.lower().startswith(w) for w in common_words): pw_rules.add("^A")
-        if any(pw.lower().endswith(w) for w in common_words): pw_rules.add("$A")
-
-        # Phone number / ZIP code detection
-        if pw.isdigit() and len(pw) in (5, 10): pw_rules.add("$zip")
-
-        if pw_rules:
-            rule_combo = ''.join(sorted(pw_rules))
-            rule_counter[rule_combo] += 1
+    # Analyze password patterns
+    rules_list = []
+    pattern_stats = {
+        'lowercase': 0,
+        'uppercase': 0,
+        'capitalize': 0,
+        'reverse': 0,
+        'digit_append': Counter(),
+        'symbol_append': Counter(),
+        'digit_prepend': Counter(),
+        'symbol_prepend': Counter(),
+        'years': Counter(),
+        'lengths': Counter(),
+        'leetspeak': 0,
+        'duplicates': 0
+    }
     
-    most_common_rules = [rule for rule, _ in rule_counter.most_common(10)]
-
+    password_set = set(passwords)
+    
+    for pw in passwords:
+        if not pw:
+            continue
+            
+        pattern_stats['lengths'][len(pw)] += 1
+        
+        # Case transformations
+        if pw.islower():
+            pattern_stats['lowercase'] += 1
+        elif pw.isupper():
+            pattern_stats['uppercase'] += 1
+            rules_list.append('u')  # uppercase all
+        elif pw[0].isupper() and pw[1:].islower():
+            pattern_stats['capitalize'] += 1
+            rules_list.append('c')  # capitalize first letter
+        
+        # Reverse
+        if pw[::-1] in password_set and pw[::-1] != pw:
+            pattern_stats['reverse'] += 1
+            rules_list.append('r')  # reverse
+        
+        # Digit patterns at end
+        if len(pw) > 1 and pw[-1].isdigit():
+            pattern_stats['digit_append'][pw[-1]] += 1
+            rules_list.append(f'${pw[-1]}')  # append digit
+            
+            # Check for multiple trailing digits
+            if len(pw) > 2 and pw[-2:].isdigit():
+                for char in pw[-2:]:
+                    rules_list.append(f'${char}')
+        
+        # Digit patterns at start
+        if len(pw) > 1 and pw[0].isdigit():
+            pattern_stats['digit_prepend'][pw[0]] += 1
+            rules_list.append(f'^{pw[0]}')  # prepend digit
+        
+        # Symbol patterns at end
+        if len(pw) > 1 and pw[-1] in "!@#$%^&*()_+-=[]{}|;:,.<>?":
+            pattern_stats['symbol_append'][pw[-1]] += 1
+            rules_list.append(f'${pw[-1]}')  # append symbol
+        
+        # Symbol patterns at start
+        if len(pw) > 1 and pw[0] in "!@#$%^&*()_+-=[]{}|;:,.<>?":
+            pattern_stats['symbol_prepend'][pw[0]] += 1
+            rules_list.append(f'^{pw[0]}')  # prepend symbol
+        
+        # Year detection (1900-2099)
+        year_matches = re.findall(r'(19\d{2}|20\d{2})', pw)
+        for year in year_matches:
+            pattern_stats['years'][year] += 1
+            # Add rules to append the year
+            for digit in year:
+                rules_list.append(f'${digit}')
+        
+        # Leetspeak detection
+        leet_chars = {'@': 'a', '4': 'a', '3': 'e', '1': 'i', '!': 'i', '0': 'o', '5': 's', '7': 't'}
+        if any(char in leet_chars for char in pw):
+            pattern_stats['leetspeak'] += 1
+            for leet, normal in leet_chars.items():
+                if leet in pw:
+                    rules_list.append(f's{normal}{leet}')  # substitute
+        
+        # Duplicate detection
+        if re.search(r'(.)\1{1,}', pw):
+            pattern_stats['duplicates'] += 1
+            rules_list.append('d')  # duplicate all characters
+    
+    # Generate common combination rules
+    common_combos = [
+        'c $1',           # Capitalize + append 1
+        'c $!',           # Capitalize + append !
+        'c $1 $2',        # Capitalize + append 12
+        'c $2 $0',        # Capitalize + append 20
+        'c $1 $9',        # Capitalize + append 19
+        'u $1',           # Uppercase + append 1
+        'u $!',           # Uppercase + append !
+        '$1 $2 $3',       # Append 123
+        '$! $@ $#',       # Append !@#
+        'c d',            # Capitalize + duplicate
+        'c r',            # Capitalize + reverse
+    ]
+    
+    # Add year-based rules for common years found
+    if pattern_stats['years']:
+        most_common_year = pattern_stats['years'].most_common(1)[0][0]
+        for digit in most_common_year:
+            common_combos.append(f'c ${digit}')
+    
+    # Count rule frequency
+    rule_counter = Counter(rules_list)
+    
+    # Get most common individual rules (top 20)
+    top_individual_rules = [rule for rule, _ in rule_counter.most_common(20)]
+    
+    # Combine individual rules and combo rules
+    all_rules = top_individual_rules + common_combos
+    
+    # Remove duplicates while preserving order
+    unique_rules = []
+    seen = set()
+    for rule in all_rules:
+        if rule not in seen:
+            unique_rules.append(rule)
+            seen.add(rule)
+    
+    # Write rules to file
     try:
         with rule_file.open('w') as rf:
-            for rule in most_common_rules:
+            rf.write("# Hashcat rules generated by Empusa\n")
+            rf.write(f"# Generated from {len(passwords)} passwords\n")
+            rf.write(f"# Timestamp: {datetime.now().isoformat()}\n\n")
+            
+            for rule in unique_rules:
                 rf.write(rule + "\n")
-        console.print(f"[green][+] {len(most_common_rules)} rules generated from {len(passwords)} passwords[/green]")
+        
+        # Display statistics
+        console.print(f"\n[bold cyan]Password Pattern Analysis:[/bold cyan]")
+        console.print(f"  Total passwords analyzed: {len(passwords)}")
+        console.print(f"  Lowercase: {pattern_stats['lowercase']}")
+        console.print(f"  Uppercase: {pattern_stats['uppercase']}")
+        console.print(f"  Capitalized: {pattern_stats['capitalize']}")
+        console.print(f"  Contains leetspeak: {pattern_stats['leetspeak']}")
+        console.print(f"  Has duplicates: {pattern_stats['duplicates']}")
+        console.print(f"  Reverse pairs found: {pattern_stats['reverse']}")
+        
+        if pattern_stats['digit_append']:
+            top_digits = pattern_stats['digit_append'].most_common(3)
+            console.print(f"  Common trailing digits: {', '.join([d for d, _ in top_digits])}")
+        
+        if pattern_stats['symbol_append']:
+            top_symbols = pattern_stats['symbol_append'].most_common(3)
+            console.print(f"  Common trailing symbols: {', '.join([s for s, _ in top_symbols])}")
+        
+        if pattern_stats['years']:
+            top_years = pattern_stats['years'].most_common(3)
+            console.print(f"  Common years: {', '.join([y for y, _ in top_years])}")
+        
+        common_lengths = pattern_stats['lengths'].most_common(3)
+        console.print(f"  Common lengths: {', '.join([str(l) for l, _ in common_lengths])}")
+        
+        console.print(f"\n[green][+] {len(unique_rules)} hashcat rules generated[/green]")
         console.print(f"[bold green]Saved rules to:[/] {rule_file}")
+        console.print(f"\n[yellow]Usage:[/yellow] hashcat -a 0 -m <mode> <hashfile> <wordlist> -r {rule_file}")
     except Exception as e:
         console.print(f"[red]Error writing rule file: {e}[/red]")
 
