@@ -12,18 +12,82 @@ Inspired by Empusa — vampire, demon, and sorceress of stealth.
 - **Hashcat Rule Generator** – mines observed password patterns to emit a compact `.rule` file.
 - **Command History Hook** – appends a small snippet to your shell rc to log commands for reporting.
 
-## Install
+## Installation
+
+### Prerequisites
+
+- **Python 3.9+**
+- **External tools** (optional but recommended):
+  - `nmap` - for network scanning
+  - `searchsploit` (from exploit-db) - for exploit discovery
+
+### Install Methods
+
+#### Option 1: pipx (Recommended - Isolated Environment)
 
 ```bash
-# Option A: local dev
-python3 -m venv .venv && source .venv/bin/activate
-pip install -e .
+# Install pipx if not already installed
+pip install pipx
+pipx ensurepath
 
-# Option B: install from source without editing
-pip install .
+# Install empusa
+pipx install git+https://github.com/Icarus4122/empusa.git
+
+# Or from local directory
+pipx install .
 ```
 
-> Requires **Python 3.9+** and external tools you call during ops (e.g., `nmap`, `searchsploit`).
+#### Option 2: pip (System/User Install)
+
+```bash
+# Install from GitHub
+pip install git+https://github.com/Icarus4122/empusa.git
+
+# Or install from local directory
+pip install .
+
+# Or install in editable mode for development
+pip install -e .
+```
+
+#### Option 3: Virtual Environment (Development)
+
+**Linux/macOS:**
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e .
+```
+
+**Windows (PowerShell):**
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -e .
+```
+
+### Verify Installation
+
+```bash
+empusa --version
+empusa --help
+```
+
+### Uninstall
+
+**With pipx:**
+
+```bash
+pipx uninstall empusa
+```
+
+**With pip:**
+
+```bash
+pip uninstall empusa
+```
 
 ## Usage
 
@@ -33,7 +97,7 @@ Launch the interactive menu:
 empusa
 ```
 
-or via python:
+Or run as a Python module:
 
 ```bash
 python -m empusa
@@ -62,12 +126,25 @@ python -m empusa
 └─ commands_ran.txt
 ```
 
+## Platform Support
+
+Empusa supports **Windows**, **Linux**, and **macOS**:
+
+- **Windows**: PowerShell profile configuration for command logging
+- **Linux/macOS**: Bash/Zsh RC file configuration
+- **Cross-platform file operations** using Python's pathlib
+
 ## Notes
 
-- `set_shell_history_hooks()` appends to `~/.bashrc` or `~/.zshrc`. Review diffs before sourcing.
-- `searchsploit` and `nmap` must be installed and on `PATH`.
-- Use responsibly and only where you have explicit authorization.
-
+- Command history logging is configured automatically based on your platform:
+  - **Windows**: Appends to PowerShell profile (`Microsoft.PowerShell_profile.ps1`)
+  - **Linux/macOS**: Appends to `~/.bashrc` or `~/.zshrc`
+  - Review changes before sourcing/restarting shell
+- `nmap` must be installed and on `PATH` for scanning features
+- `searchsploit` (exploit-db) must be installed for exploit discovery features
+- IP addresses are validated before scanning
+- All file operations use cross-platform paths
+- **Use responsibly and only where you have explicit authorization**
 
 ## Development
 
