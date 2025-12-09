@@ -10,16 +10,49 @@ from rich.console import Console
 from rich.prompt import Prompt, Confirm
 from rich.text import Text
 from rich.panel import Panel
+from rich.progress import Progress, SpinnerColumn, TextColumn
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from collections import Counter
 from datetime import datetime
+
+# Global configuration
+CONFIG = {
+    'verbose': False,
+    'quiet': False,
+    'dry_run': False,
+    'no_color': False,
+    'max_workers': 8
+}
 
 console = Console()
 
 # Platform detection
 IS_WINDOWS = platform.system() == "Windows"
 IS_UNIX = platform.system() in ["Linux", "Darwin"]
+
+
+def log_verbose(message: str, style: str = "cyan") -> None:
+    """Print message only in verbose mode."""
+    if CONFIG['verbose'] and not CONFIG['quiet']:
+        console.print(message, style=style)
+
+
+def log_info(message: str, style: str = "cyan") -> None:
+    """Print message unless in quiet mode."""
+    if not CONFIG['quiet']:
+        console.print(message, style=style)
+
+
+def log_error(message: str) -> None:
+    """Always print error messages."""
+    console.print(message, style="bold red")
+
+
+def log_success(message: str) -> None:
+    """Print success message unless in quiet mode."""
+    if not CONFIG['quiet']:
+        console.print(message, style="green")
 
 
 def check_tool_exists(tool_name: str) -> bool:
@@ -43,6 +76,8 @@ def sanitize_filename(name: str) -> str:
 
 def print_banner() -> None:
     """Display the Empusa banner."""
+    if CONFIG['quiet']:
+        return
     banner = r"""
 [bold red]
               ▄████████████▄
@@ -85,7 +120,7 @@ def detect_os(nmap_output: Path) -> str:
     """
     nmap_path = Path(nmap_output)
     if not nmap_path.exists():
-        console.print(f"[yellow]Warning: {nmap_output} not found for OS detection[/yellow]")
+        log_verbose(f"Warning: {nmap_output} not found for OS detection", "yellow")
         return "Unknown"
     
     try:
@@ -97,7 +132,7 @@ def detect_os(nmap_output: Path) -> str:
         else:
             return "Unknown"
     except Exception as e:
-        console.print(f"[yellow]Warning: Could not read {nmap_output}: {e}[/yellow]")
+        log_verbose(f"Warning: Could not read {nmap_output}: {e}", "yellow")
         return "Unknown"
 
 def search_exploits_from_nmap(nmap_file: Path) -> None:
@@ -109,15 +144,19 @@ def search_exploits_from_nmap(nmap_file: Path) -> None:
     """
     nmap_path = Path(nmap_file)
     if not nmap_path.exists():
-        console.print(f"[red]Nmap file not found: {nmap_file}[/red]")
+        log_error(f"Nmap file not found: {nmap_file}")
         return
     
     if not check_tool_exists("searchsploit"):
-        console.print("[red]Error: searchsploit not found on PATH.[/red]")
-        console.print("[yellow]Install exploit-db or skip this step.[/yellow]")
+        log_error("Error: searchsploit not found on PATH.")
+        log_info("Install exploit-db or skip this step.", "yellow")
         return
     
-    console.print(f"[cyan][*] Parsing services from {nmap_file} and searching exploits...[/cyan]")
+    if CONFIG['dry_run']:
+        log_info("[DRY RUN] Would search exploits from nmap results", "yellow")
+        return
+    
+    log_info(f"[*] Parsing services from {nmap_file} and searching exploits...")
     
     try:
         lines = nmap_path.read_text(errors='ignore').splitlines()
@@ -145,7 +184,7 @@ def search_exploits_from_nmap(nmap_file: Path) -> None:
             out.write(f"Generated: {datetime.now().isoformat()}\n\n")
             
             for term in sorted(found_terms):
-                console.print(f"\n[bold yellow]>> searchsploit {term}[/bold yellow]")
+                log_info(f"\n>> searchsploit {term}", "bold yellow")
                 out.write(f"## Exploits for: {term}\n")
                 try:
                     result = subprocess.run(
@@ -155,20 +194,21 @@ def search_exploits_from_nmap(nmap_file: Path) -> None:
                         check=False,
                         timeout=30
                     )
-                    console.print(result.stdout)
+                    if not CONFIG['quiet']:
+                        console.print(result.stdout)
                     out.write(f"```\n{result.stdout}\n```\n\n")
                 except subprocess.TimeoutExpired:
                     msg = "searchsploit timed out\n"
-                    console.print(f"[yellow]{msg}[/yellow]")
+                    log_verbose(msg, "yellow")
                     out.write(msg + "\n")
                 except Exception as e:
                     msg = f"Error running searchsploit: {e}\n"
-                    console.print(f"[yellow]{msg}[/yellow]")
+                    log_verbose(msg, "yellow")
                     out.write(msg + "\n")
 
-        console.print(f"[green][+] Saved exploit suggestions to: {exploit_log}[/green]")
+        log_success(f"[+] Saved exploit suggestions to: {exploit_log}")
     except Exception as e:
-        console.print(f"[red]Error writing exploit log: {e}[/red]")
+        log_error(f"Error writing exploit log: {e}")
 
 def run_nmap(ip: str, output_path: Path) -> Tuple[str, Path]:
     """
@@ -187,8 +227,12 @@ def run_nmap(ip: str, output_path: Path) -> Tuple[str, Path]:
     greppable = output_path / "ports_grep.txt"
 
     if not check_tool_exists("nmap"):
-        console.print("[red]Error: nmap not found on PATH.[/red]")
-        console.print("[yellow]Install nmap before running scans.[/yellow]")
+        log_error("Error: nmap not found on PATH.")
+        log_info("Install nmap before running scans.", "yellow")
+        return ip, output_file
+    
+    if CONFIG['dry_run']:
+        log_info(f"[DRY RUN] Would scan {ip}", "yellow")
         return ip, output_file
 
     def _run_nmap(cmd: List[str]) -> subprocess.CompletedProcess:
@@ -201,10 +245,10 @@ def run_nmap(ip: str, output_path: Path) -> Tuple[str, Path]:
                 timeout=600  # 10 minute timeout
             )
         except subprocess.TimeoutExpired:
-            console.print(f"[yellow]Warning: Nmap scan timed out for {ip}[/yellow]")
+            log_verbose(f"Warning: Nmap scan timed out for {ip}", "yellow")
             return subprocess.CompletedProcess(cmd, 1, b"", b"Timeout")
         except Exception as e:
-            console.print(f"[red]Error running nmap: {e}[/red]")
+            log_error(f"Error running nmap: {e}")
             return subprocess.CompletedProcess(cmd, 1, b"", str(e).encode())
 
     def _parse_greppable(path: Path) -> List[str]:
@@ -222,11 +266,11 @@ def run_nmap(ip: str, output_path: Path) -> Tuple[str, Path]:
                 for m in rx.finditer(line):
                     ports.add(m.group(1))
         except Exception as e:
-            console.print(f"[yellow]Warning: Could not parse {path}: {e}[/yellow]")
+            log_verbose(f"Warning: Could not parse {path}: {e}", "yellow")
         
         return sorted(ports, key=int)
 
-    console.print(f"[*] Scanning (fast discovery) on [bold yellow]{ip}[/]...", style="cyan")
+    log_info(f"[*] Scanning (fast discovery) on {ip}...")
 
     disc_cmd = [
             "nmap", "-n", "-T4", "-Pn", "-A",
@@ -236,7 +280,7 @@ def run_nmap(ip: str, output_path: Path) -> Tuple[str, Path]:
     open_ports = _parse_greppable(greppable)
 
     if not open_ports:
-        console.print("[yellow]No ports found, retrying discovery with higher retries…[/yellow]")
+        log_verbose("No ports found, retrying discovery with higher retries…", "yellow")
         disc_cmd_retry = [
             "nmap", "-n", "-T5", "-Pn", "-p-",
             "--max-rtt-timeout", "1000ms",
@@ -247,11 +291,11 @@ def run_nmap(ip: str, output_path: Path) -> Tuple[str, Path]:
         open_ports = _parse_greppable(greppable)
 
     if not open_ports:
-        console.print("[red]Discovery still empty. Falling back to -A (full) so you get results.[/red]")
+        log_verbose("Discovery still empty. Falling back to -A (full) so you get results.", "red")
         _run_nmap(["nmap", "-A", "-T5", "-Pn", "-p-", ip, "-oN", str(output_file)])
     else:
         ports_csv = ",".join(open_ports)
-        console.print(f"[*] Enriching {ip} (ports: {ports_csv})...", style="cyan")
+        log_info(f"[*] Enriching {ip} (ports: {ports_csv})...")
         enrich_cmd = [
             "nmap", "-n", "-T4", "-Pn",
             "-sV", "--version-light",
@@ -268,13 +312,13 @@ def run_nmap(ip: str, output_path: Path) -> Tuple[str, Path]:
     nmap_line = re.compile(r'(\d+)/(tcp|udp)\s+open\s+([\w\-\._]+)(\s+(.*))?')
     
     if not output_file.exists():
-        console.print(f"[yellow]Warning: {output_file} not created[/yellow]")
+        log_verbose(f"Warning: {output_file} not created", "yellow")
         return ip, output_file
     
     try:
         lines = output_file.read_text(errors='ignore').splitlines()
     except Exception as e:
-        console.print(f"[yellow]Warning: Could not read {output_file}: {e}[/yellow]")
+        log_verbose(f"Warning: Could not read {output_file}: {e}", "yellow")
         return ip, output_file
         
     for line in lines:
@@ -342,7 +386,7 @@ def run_nmap(ip: str, output_path: Path) -> Tuple[str, Path]:
                     pf.write("# - Loot: banners, misconfigurations, leaks\n")
                 pf.write("# ============================\n")
         except Exception as e:
-            console.print(f"[yellow]Warning: Could not write port file {port_file_path}: {e}[/yellow]")
+            log_verbose(f"Warning: Could not write port file {port_file_path}: {e}", "yellow")
 
     return ip, output_file
 
@@ -355,7 +399,7 @@ def summarize_hosts(env_name: str) -> None:
     """
     base_dir = Path(env_name).absolute()
     if not base_dir.exists():
-        console.print(f"[bold red]Environment folder '{env_name}' does not exist.[/bold red]")
+        log_error(f"Environment folder '{env_name}' does not exist.")
         return
 
     output_lines = []
@@ -374,18 +418,19 @@ def summarize_hosts(env_name: str) -> None:
                         ports_display = ", ".join(ports) if ports else "No open ports"
                         output_lines.append(f"{entry.name}: {ports_display}")
                     except Exception as e:
-                        console.print(f"[yellow]Warning: Could not read {nmap_file}: {e}[/yellow]")
+                        log_verbose(f"Warning: Could not read {nmap_file}: {e}", "yellow")
     except Exception as e:
-        console.print(f"[red]Error listing environment: {e}[/red]")
+        log_error(f"Error listing environment: {e}")
 
     if output_lines:
-        console.print("[bold blue]== Host Summary ==[/bold blue]", highlight=False)
-        console.print("```", highlight=False)
-        for line in output_lines:
-            console.print(line, highlight=False)
-        console.print("```", highlight=False)
+        log_info("== Host Summary ==", "bold blue")
+        if not CONFIG['quiet']:
+            console.print("```", highlight=False)
+            for line in output_lines:
+                console.print(line, highlight=False)
+            console.print("```", highlight=False)
     else:
-        console.print("[bold yellow]No scan results found to summarize.[/bold yellow]")
+        log_info("No scan results found to summarize.", "bold yellow")
 
 def configure_shell_history(hist_file: Path) -> None:
     """
@@ -405,7 +450,7 @@ def configure_shell_history(hist_file: Path) -> None:
         if profile_path.exists():
             content = profile_path.read_text(errors='ignore')
             if str(hist_file) in content:
-                console.print(f"[yellow]PowerShell profile already configured for {hist_file}[/yellow]")
+                log_verbose(f"PowerShell profile already configured for {hist_file}", "yellow")
                 return
         
         config = f'''
@@ -415,14 +460,18 @@ Register-EngineEvent PowerShell.Exiting -Action {{
     Get-History | Export-Csv -Path $EmpusaHistoryFile -Append -NoTypeInformation
 }}
 '''
+        if CONFIG['dry_run']:
+            log_info(f"[DRY RUN] Would configure PowerShell profile: {profile_path}", "yellow")
+            return
+        
         try:
             with profile_path.open("a", encoding='utf-8') as f:
                 f.write(config)
-            console.print(f"[green][+] PowerShell profile configured: {profile_path}[/green]")
-            console.print("[yellow]Restart PowerShell or run: . $PROFILE[/yellow]")
+            log_success(f"[+] PowerShell profile configured: {profile_path}")
+            log_info("Restart PowerShell or run: . $PROFILE", "yellow")
         except Exception as e:
-            console.print(f"[red]Error configuring PowerShell profile: {e}[/red]")
-            console.print("[yellow]You can manually log commands to the file.[/yellow]")
+            log_error(f"Error configuring PowerShell profile: {e}")
+            log_info("You can manually log commands to the file.", "yellow")
     
     elif IS_UNIX:
         # Unix shell configuration
@@ -451,25 +500,29 @@ setopt INC_APPEND_HISTORY
 setopt SHARE_HISTORY
 '''
         else:
-            console.print(f"[yellow]Unsupported shell: {shell}. Command logging may not work.[/yellow]")
+            log_verbose(f"Unsupported shell: {shell}. Command logging may not work.", "yellow")
             return
         
         # Check if already configured
         if rc_file.exists():
             content = rc_file.read_text(errors='ignore')
             if str(hist_file) in content:
-                console.print(f"[yellow]Shell RC file already configured for {hist_file}[/yellow]")
+                log_verbose(f"Shell RC file already configured for {hist_file}", "yellow")
                 return
+        
+        if CONFIG['dry_run']:
+            log_info(f"[DRY RUN] Would configure shell logging in {rc_file}", "yellow")
+            return
         
         try:
             with rc_file.open("a") as f:
                 f.write(config)
-            console.print(f"[green][+] Shell logging hook written to {rc_file}[/green]")
-            console.print(f"[yellow]Please run: source {rc_file}[/yellow]")
+            log_success(f"[+] Shell logging hook written to {rc_file}")
+            log_info(f"Please run: source {rc_file}", "yellow")
         except Exception as e:
-            console.print(f"[red]Error configuring shell: {e}[/red]")
+            log_error(f"Error configuring shell: {e}")
     else:
-        console.print("[yellow]Unknown platform. Command logging not configured.[/yellow]")
+        log_verbose("Unknown platform. Command logging not configured.", "yellow")
 
 def build_env(env_name: str, ips: List[str]) -> None:
     """
@@ -485,21 +538,27 @@ def build_env(env_name: str, ips: List[str]) -> None:
         if validate_ip(ip):
             valid_ips.append(ip)
         else:
-            console.print(f"[red]Invalid IP address: {ip} - skipping[/red]")
+            log_error(f"Invalid IP address: {ip} - skipping")
     
     if not valid_ips:
-        console.print("[red]No valid IP addresses provided. Aborting.[/red]")
+        log_error("No valid IP addresses provided. Aborting.")
         return
     
     if not check_tool_exists("nmap"):
-        console.print("[red]Error: nmap not found. Please install nmap first.[/red]")
+        log_error("Error: nmap not found. Please install nmap first.")
+        return
+    
+    if CONFIG['dry_run']:
+        log_info(f"[DRY RUN] Would build environment '{env_name}' for IPs: {', '.join(valid_ips)}", "yellow")
         return
     
     base_dir = Path(env_name).absolute()
     
     # Check if environment already exists
     if base_dir.exists() and any(base_dir.iterdir()):
-        if not Confirm.ask(f"[yellow]Environment '{env_name}' already exists. Continue?[/yellow]"):
+        if CONFIG['dry_run']:
+            log_info(f"[DRY RUN] Environment '{env_name}' already exists", "yellow")
+        elif not Confirm.ask(f"[yellow]Environment '{env_name}' already exists. Continue?[/yellow]"):
             return
     
     base_dir.mkdir(parents=True, exist_ok=True)
@@ -524,14 +583,28 @@ def build_env(env_name: str, ips: List[str]) -> None:
         nmap_path.mkdir(parents=True, exist_ok=True)
         ip_dirs[ip] = nmap_path
 
-    console.print("[bold green]\n[*] Starting threaded Nmap scanning...[/bold green]")
+    log_info("\n[*] Starting threaded Nmap scanning...", "bold green")
     scan_results = {}
-    max_workers = min(8, len(valid_ips))
+    max_workers = min(CONFIG['max_workers'], len(valid_ips))
+    
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         future_to_ip = {executor.submit(run_nmap, ip, nmap_path): ip for ip, nmap_path in ip_dirs.items()}
-        for future in as_completed(future_to_ip):
-            ip, scan_output = future.result()
-            scan_results[ip] = scan_output
+        
+        if not CONFIG['quiet']:
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=console
+            ) as progress:
+                task = progress.add_task(f"[cyan]Scanning {len(valid_ips)} hosts...", total=len(valid_ips))
+                for future in as_completed(future_to_ip):
+                    ip, scan_output = future.result()
+                    scan_results[ip] = scan_output
+                    progress.advance(task)
+        else:
+            for future in as_completed(future_to_ip):
+                ip, scan_output = future.result()
+                scan_results[ip] = scan_output
 
     for ip, scan_output in scan_results.items():
         os_type = detect_os(scan_output)
@@ -539,19 +612,19 @@ def build_env(env_name: str, ips: List[str]) -> None:
         new_path = base_dir / f"{ip}-{os_type}"
 
         if new_path.exists():
-            console.print(f"[!] Warning: {new_path} already exists. Skipping rename.", style="bold red")
+            log_verbose(f"Warning: {new_path} already exists. Skipping rename.", "bold red")
         else:
             try:
                 old_path.rename(new_path)
-                console.print(f"[+] {ip} classified as {os_type} -> {new_path}", style="green")
+                log_success(f"[+] {ip} classified as {os_type} -> {new_path}")
             except Exception as e:
-                console.print(f"[red]Error renaming {old_path}: {e}[/red]")
+                log_error(f"Error renaming {old_path}: {e}")
 
     try:
         with commands_log_file.open("a") as f:
             f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Built environment '{env_name}' with IPs: {', '.join(valid_ips)}\n")
     except Exception as e:
-        console.print(f"[yellow]Warning: Could not write to command log: {e}[/yellow]")
+        log_verbose(f"Warning: Could not write to command log: {e}", "yellow")
 
 def build_reverse_tunnel() -> None:
     """Interactive builder for reverse tunnel setup (Chisel or SSH)."""
@@ -611,22 +684,22 @@ def find_password_files(domain: str, search_path: Path = None) -> List[Path]:
     target_filename = f"{domain}-passwords.txt"
     matches = []
     
-    console.print(f"[cyan]Searching for {target_filename} in {search_path}...[/cyan]")
+    log_verbose(f"Searching for {target_filename} in {search_path}...")
     
     try:
         for path in search_path.rglob(target_filename):
             if path.is_file():
                 matches.append(path)
-                console.print(f"[green]Found: {path}[/green]")
+                log_verbose(f"Found: {path}", "green")
     except Exception as e:
-        console.print(f"[yellow]Warning during search: {e}[/yellow]")
+        log_verbose(f"Warning during search: {e}", "yellow")
     
     return matches
 
 
 def generate_hashcat_rules() -> None:
     """Generate hashcat rules from password patterns in environment password file."""
-    console.print("[bold cyan]\n== Hashcat Rule Generator ==[/bold cyan]")
+    log_info("\n== Hashcat Rule Generator ==", "bold cyan")
 
     domain = Prompt.ask("Enter domain/environment name (used in filename)").strip().rstrip('/')
     
@@ -635,39 +708,49 @@ def generate_hashcat_rules() -> None:
     
     # If not found locally, ask for custom search path
     if not matches:
-        console.print(f"[yellow]No {domain}-passwords.txt found in current directory.[/yellow]")
+        log_info(f"No {domain}-passwords.txt found in current directory.", "yellow")
         if Confirm.ask("Search in a different directory?"):
             custom_path = Prompt.ask("Enter directory path to search")
             try:
                 matches = find_password_files(domain, Path(custom_path))
             except Exception as e:
-                console.print(f"[red]Error searching custom path: {e}[/red]")
+                log_error(f"Error searching custom path: {e}")
                 return
     
     if not matches:
-        console.print(f"[bold red]No {domain}-passwords.txt file found.[/bold red]")
+        log_error(f"No {domain}-passwords.txt file found.")
         return
 
     if len(matches) == 1:
         pw_file = matches[0]
     else:
-        console.print("[bold yellow]Multiple password files found:[/bold yellow]")
+        log_info("Multiple password files found:", "bold yellow")
         for i, path in enumerate(matches):
-            console.print(f"{i + 1}. {path}")
+            log_info(f"{i + 1}. {path}")
         try:
             index = int(Prompt.ask("Select the file to use", choices=[str(i + 1) for i in range(len(matches))])) - 1
             pw_file = matches[index]
         except (ValueError, IndexError):
-            console.print("[red]Invalid selection.[/red]")
+            log_error("Invalid selection.")
             return
 
     pw_file = Path(pw_file)
     rule_file = pw_file.parent / "hashcat_generated.rule"
+    
+    # Check if rule file exists and warn user
+    if rule_file.exists() and not CONFIG['dry_run']:
+        if not Confirm.ask(f"[yellow]Rule file {rule_file} already exists. Overwrite?[/yellow]"):
+            log_info("Operation cancelled.", "yellow")
+            return
+    
+    if CONFIG['dry_run']:
+        log_info(f"[DRY RUN] Would generate hashcat rules from {pw_file}", "yellow")
+        return
 
     try:
         passwords = [line.strip() for line in pw_file.read_text(errors='ignore').splitlines() if line.strip()]
     except Exception as e:
-        console.print(f"[red]Error reading password file: {e}[/red]")
+        log_error(f"Error reading password file: {e}")
         return
 
     # Analyze password patterns
@@ -805,45 +888,45 @@ def generate_hashcat_rules() -> None:
                 rf.write(rule + "\n")
         
         # Display statistics
-        console.print(f"\n[bold cyan]Password Pattern Analysis:[/bold cyan]")
-        console.print(f"  Total passwords analyzed: {len(passwords)}")
-        console.print(f"  Lowercase: {pattern_stats['lowercase']}")
-        console.print(f"  Uppercase: {pattern_stats['uppercase']}")
-        console.print(f"  Capitalized: {pattern_stats['capitalize']}")
-        console.print(f"  Contains leetspeak: {pattern_stats['leetspeak']}")
-        console.print(f"  Has duplicates: {pattern_stats['duplicates']}")
-        console.print(f"  Reverse pairs found: {pattern_stats['reverse']}")
+        log_info("\nPassword Pattern Analysis:", "bold cyan")
+        log_info(f"  Total passwords analyzed: {len(passwords)}")
+        log_info(f"  Lowercase: {pattern_stats['lowercase']}")
+        log_info(f"  Uppercase: {pattern_stats['uppercase']}")
+        log_info(f"  Capitalized: {pattern_stats['capitalize']}")
+        log_info(f"  Contains leetspeak: {pattern_stats['leetspeak']}")
+        log_info(f"  Has duplicates: {pattern_stats['duplicates']}")
+        log_info(f"  Reverse pairs found: {pattern_stats['reverse']}")
         
         if pattern_stats['digit_append']:
             top_digits = pattern_stats['digit_append'].most_common(3)
-            console.print(f"  Common trailing digits: {', '.join([d for d, _ in top_digits])}")
+            log_info(f"  Common trailing digits: {', '.join([d for d, _ in top_digits])}")
         
         if pattern_stats['symbol_append']:
             top_symbols = pattern_stats['symbol_append'].most_common(3)
-            console.print(f"  Common trailing symbols: {', '.join([s for s, _ in top_symbols])}")
+            log_info(f"  Common trailing symbols: {', '.join([s for s, _ in top_symbols])}")
         
         if pattern_stats['years']:
             top_years = pattern_stats['years'].most_common(3)
-            console.print(f"  Common years: {', '.join([y for y, _ in top_years])}")
+            log_info(f"  Common years: {', '.join([y for y, _ in top_years])}")
         
         common_lengths = pattern_stats['lengths'].most_common(3)
-        console.print(f"  Common lengths: {', '.join([str(l) for l, _ in common_lengths])}")
+        log_info(f"  Common lengths: {', '.join([str(l) for l, _ in common_lengths])}")
         
-        console.print(f"\n[green][+] {len(unique_rules)} hashcat rules generated[/green]")
-        console.print(f"[bold green]Saved rules to:[/] {rule_file}")
-        console.print(f"\n[yellow]Usage:[/yellow] hashcat -a 0 -m <mode> <hashfile> <wordlist> -r {rule_file}")
+        log_success(f"\n[+] {len(unique_rules)} hashcat rules generated")
+        log_success(f"Saved rules to: {rule_file}")
+        log_info(f"\nUsage: hashcat -a 0 -m <mode> <hashfile> <wordlist> -r {rule_file}", "yellow")
     except Exception as e:
-        console.print(f"[red]Error writing rule file: {e}[/red]")
+        log_error(f"Error writing rule file: {e}")
 
 
 def summarize_command() -> None:
     """Display the main menu options."""
-    console.print("[bold blue]==== Environment Automation Tool ====[/bold blue]")
-    console.print("1. Build New Environment")
-    console.print("2. Build Reverse Tunnel")
-    console.print("3. Generate Hashcat Rules")
-    console.print("4. Search Exploits from Nmap Results")
-    console.print("0. Exit")
+    log_info("==== Environment Automation Tool ====", "bold blue")
+    log_info("1. Build New Environment")
+    log_info("2. Build Reverse Tunnel")
+    log_info("3. Generate Hashcat Rules")
+    log_info("4. Search Exploits from Nmap Results")
+    log_info("0. Exit")
 
 
 def main_menu() -> None:
@@ -870,10 +953,10 @@ def main_menu() -> None:
             nmap_path = Path(env_name) / ip_target / "nmap" / "full_scan.txt"
             search_exploits_from_nmap(nmap_path)
         elif choice == '0':
-            console.print("Exiting.", style="bold yellow")
+            log_info("Exiting.", "bold yellow")
             break
         else:
-            console.print("[bold red]Invalid choice. Try again.[/bold red]")
+            log_error("Invalid choice. Try again.")
 
 
 def main() -> None:
@@ -891,11 +974,54 @@ def main() -> None:
         version=f"%(prog)s {__version__}"
     )
     parser.add_argument(
-        "--menu", 
-        action="store_true", 
-        help="Launch interactive menu (default)"
+        "-v", "--verbose",
+        action="store_true",
+        help="Enable verbose output (detailed logging)"
     )
+    parser.add_argument(
+        "-q", "--quiet",
+        action="store_true",
+        help="Suppress non-essential output"
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would be done without executing"
+    )
+    parser.add_argument(
+        "--no-color",
+        action="store_true",
+        help="Disable colored output"
+    )
+    parser.add_argument(
+        "-w", "--workers",
+        type=int,
+        default=8,
+        metavar="N",
+        help="Maximum number of concurrent scan workers (default: 8)"
+    )
+    
     args = parser.parse_args()
+    
+    # Update global configuration
+    CONFIG['verbose'] = args.verbose
+    CONFIG['quiet'] = args.quiet
+    CONFIG['dry_run'] = args.dry_run
+    CONFIG['no_color'] = args.no_color
+    CONFIG['max_workers'] = max(1, args.workers)
+    
+    # Configure console based on settings
+    global console
+    if args.no_color:
+        console = Console(no_color=True, force_terminal=False)
+    
+    if args.verbose and args.quiet:
+        log_error("Cannot use --verbose and --quiet together")
+        return
+    
+    if args.dry_run:
+        log_info("[DRY RUN MODE] No changes will be made", "bold yellow")
+    
     main_menu()
 
 if __name__ == '__main__':
