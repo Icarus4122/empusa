@@ -1,0 +1,10 @@
+{
+    "name": "sharp-download-exec",
+    "language": "csharp",
+    "description": "Download a file and execute it \u2014 .NET download cradle",
+    "compiler": "dotnet",
+    "source": "Program.cs",
+    "compile_cmd": "dotnet build {source_dir} -o {build_dir} -c Release",
+    "target_os": "windows",
+    "output": "sharp-download-exec.exe"
+}

@@ -205,3 +205,13 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# .NET / C# build artifacts (empusa module workshop)
+**/obj/
+**/bin/
+*.user
+*.suo
+.vs/
+
+# Visual Studio solution file (not needed for Python users)
+*.sln

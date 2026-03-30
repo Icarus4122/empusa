@@ -1,0 +1,10 @@
+{
+    "name": "make-multi-target",
+    "language": "make",
+    "description": "Makefile project \u2014 builds Windows + Linux payloads from one source",
+    "compiler": "make",
+    "source": "Makefile",
+    "compile_cmd": "make -C {source_dir} all",
+    "target_os": "any",
+    "output": "build"
+}

@@ -1,0 +1,10 @@
+{
+    "name": "perl-enum",
+    "language": "perl",
+    "description": "Linux enumeration script in Perl \u2014 works when Python/Bash are restricted",
+    "compiler": "perl",
+    "source": "main.pl",
+    "compile_cmd": "perl -c {source}",
+    "target_os": "linux",
+    "output": "main.pl"
+}

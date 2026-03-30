@@ -1,0 +1,10 @@
+{
+    "name": "sharp-runner",
+    "language": "csharp",
+    "description": "Execute system commands from C# \u2014 basic command runner",
+    "compiler": "dotnet",
+    "source": "Program.cs",
+    "compile_cmd": "dotnet build {source_dir} -o {build_dir} -c Release",
+    "target_os": "windows",
+    "output": "sharp-runner.exe"
+}

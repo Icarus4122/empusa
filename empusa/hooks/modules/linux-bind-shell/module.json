@@ -1,0 +1,10 @@
+{
+    "name": "linux-bind-shell",
+    "language": "c",
+    "description": "Linux TCP bind shell \u2014 listens for incoming connections",
+    "compiler": "gcc",
+    "source": "main.c",
+    "compile_cmd": "gcc {source} -o {output}",
+    "target_os": "linux",
+    "output": "bind_shell"
+}

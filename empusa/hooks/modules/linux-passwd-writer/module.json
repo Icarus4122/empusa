@@ -1,0 +1,10 @@
+{
+    "name": "linux-passwd-writer",
+    "language": "c",
+    "description": "Appends a root-level user to /etc/passwd",
+    "compiler": "gcc",
+    "source": "main.c",
+    "compile_cmd": "gcc {source} -o {output}",
+    "target_os": "linux",
+    "output": "passwd_writer"
+}

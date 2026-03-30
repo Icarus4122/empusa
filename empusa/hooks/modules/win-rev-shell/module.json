@@ -1,0 +1,10 @@
+{
+    "name": "win-rev-shell",
+    "language": "c",
+    "description": "Windows TCP reverse shell in C",
+    "compiler": "x86_64-w64-mingw32-gcc",
+    "source": "main.c",
+    "compile_cmd": "x86_64-w64-mingw32-gcc {source} -o {output} -lws2_32",
+    "target_os": "windows",
+    "output": "rev_shell.exe"
+}

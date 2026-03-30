@@ -1,0 +1,10 @@
+{
+    "name": "win-sched-task",
+    "language": "c",
+    "description": "Scheduled task replacement \u2014 adds admin user when task fires",
+    "compiler": "x86_64-w64-mingw32-gcc",
+    "source": "main.c",
+    "compile_cmd": "x86_64-w64-mingw32-gcc {source} -o {output}",
+    "target_os": "windows",
+    "output": "sched_task.exe"
+}

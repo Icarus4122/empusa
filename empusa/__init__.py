@@ -1,13 +1,13 @@
 """
 Empusa - Shape-shifting Recon & Exploitation Framework
 
-A comprehensive penetration testing automation toolkit for OSCP-style workflows.
+A comprehensive penetration testing automation toolkit for  workflows.
 """
 
 __app_name__ = "empusa"
-__version__ = "1.0.0"
+__version__ = "2.1.0"
 __author__ = "Amos Parker"
-__license__ = "MIT"
+__license__ = "GPL-3.0-or-later"
 
 from empusa.cli import main
 

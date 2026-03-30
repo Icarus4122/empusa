@@ -1,0 +1,10 @@
+{
+    "name": "go-rev-shell",
+    "language": "go",
+    "description": "Cross-platform TCP reverse shell in Go",
+    "compiler": "go",
+    "source": "main.go",
+    "compile_cmd": "go build -o {output} {source}",
+    "target_os": "any",
+    "output": "rev_shell"
+}

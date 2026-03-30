@@ -1,197 +1,136 @@
-# Empusa Installation & Testing Guide
+# Installing Empusa
 
-## Quick Start
+## Requirements
 
-### 1. Install in Development Mode (Recommended for testing)
+| Requirement | Minimum | Recommended |
+|-------------|---------|-------------|
+| Python | 3.9 | 3.12+ |
+| pip / pipx | latest | latest |
+| nmap | any | 7.94+ |
+| searchsploit | any | latest |
 
-```powershell
-# Navigate to project directory
-cd "c:\Users\aspar\Desktop\Personal Projects\empusa"
+> `nmap` and `searchsploit` are optional but required for scanning and exploit
+> discovery features.
 
-# Install in editable mode
-pip install -e .
-```
+## Option 1 - pipx (Recommended)
 
-### 2. Verify Installation
+`pipx` installs Empusa in an isolated virtual environment with the `empusa`
+command available globally.
 
-```powershell
-# Check version
-empusa --version
+```bash
+# From GitHub
+pipx install git+https://github.com/Icarus4122/empusa.git
 
-# Show help
-empusa --help
-
-# Run the application
-empusa
-```
-
-### 3. Test the Package
-
-```powershell
-# Test as module
-python -m empusa
-
-# Check if package is installed
-pip show empusa
-```
-
-## Installation Methods Tested on Windows
-
-### Method 1: pipx (Isolated, Recommended)
-
-```powershell
-# Install pipx if not already installed
-pip install pipx
-python -m pipx ensurepath
-
-# Restart PowerShell, then install empusa
+# From a local clone
+git clone https://github.com/Icarus4122/empusa.git
+cd empusa
 pipx install .
-
-# Test
-empusa --version
 ```
 
-### Method 2: pip (System Install)
+### Upgrading with pipx
 
-```powershell
-# Install
+```bash
+pipx upgrade empusa
+
+# Or force reinstall from local source
+pipx uninstall empusa && pipx install .
+```
+
+## Option 2 - pip
+
+```bash
+pip install git+https://github.com/Icarus4122/empusa.git
+
+# Or from local clone
 pip install .
-
-# Test
-empusa --version
-
-# Uninstall
-pip uninstall empusa
 ```
 
-### Method 3: Virtual Environment (Development)
+### Editable / Development Install
 
-```powershell
-# Create virtual environment
-python -m venv .venv
-
-# Activate
-.\.venv\Scripts\Activate.ps1
-
-# Install in editable mode
+```bash
 pip install -e .
-
-# Test
-empusa --version
-
-# Deactivate when done
-deactivate
 ```
 
-## Building Distribution Package
+## Option 3 - Docker
 
-To create distributable packages:
-
-```powershell
-# Install build tools
-pip install build
-
-# Build the package
-python -m build
-
-# This creates:
-# - dist/empusa-1.0.0-py3-none-any.whl
-# - dist/empusa-1.0.0.tar.gz
+```bash
+docker build -t empusa .
+docker run -it --rm empusa
 ```
 
-## Installing from Distribution
+The Dockerfile installs `nmap` and `exploitdb` automatically.
 
-```powershell
-# Install from wheel
-pip install dist/empusa-1.0.0-py3-none-any.whl
+## Post-Install Setup
 
-# Or from tarball
-pip install dist/empusa-1.0.0.tar.gz
+### Verify the installation
+
+```bash
+empusa --version   # Should print 2.1.0
+empusa --help      # Show CLI flags
+```
+
+### Hook directories
+
+On first launch Empusa auto-creates `empusa/hooks/` with subdirectories
+for every lifecycle event:
+
+```text
+empusa/hooks/
+├-- on_startup/
+├-- on_shutdown/
+├-- post_build/
+├-- post_scan/
+├-- on_loot_add/
+├-- on_report_generated/
+└-- on_env_select/
+```
+
+You can also create example hooks via **menu option 8 → Create example hook**.
+
+### Kali Linux Notes
+
+Kali ships with a system Python that is externally managed. Use `pipx`:
+
+```bash
+sudo apt install pipx
+pipx ensurepath
+pipx install .
+```
+
+If you previously installed an older version:
+
+```bash
+pipx uninstall empusa && pipx install .
+```
+
+### External Tools
+
+| Tool | Install (Kali/Debian) | Used By |
+|------|----------------------|---------|
+| nmap | `sudo apt install nmap` | Environment Builder |
+| searchsploit | `sudo apt install exploitdb` | Exploit Discovery |
+| chisel | manual download | Reverse Tunnels |
+| ligolo-ng | manual download | Reverse Tunnels |
+
+## Uninstall
+
+```bash
+# pipx
+pipx uninstall empusa
+
+# pip
+pip uninstall empusa
+
+# Clean up hook directory (optional - only if you added custom hooks)
+# Hooks live inside the empusa/ package directory and are removed with uninstall
 ```
 
 ## Troubleshooting
 
-### Issue: "empusa: command not found"
-
-**Solution:**
-
-```powershell
-# Check if Scripts directory is in PATH
-$env:Path -split ';' | Select-String -Pattern 'Scripts'
-
-# Add Python Scripts to PATH temporarily
-$env:Path += ";$env:LOCALAPPDATA\Programs\Python\Python39\Scripts"
-
-# Or permanently add via System Properties > Environment Variables
-```
-
-### Issue: Import errors
-
-**Solution:**
-
-```powershell
-# Reinstall with verbose output
-pip install -e . -v
-
-# Check installation
-pip list | Select-String empusa
-```
-
-### Issue: "rich" module not found
-
-**Solution:**
-
-```powershell
-# Rich should install automatically, but if not:
-pip install rich>=13.0.0
-```
-
-## Verifying Features
-
-After installation, test each feature:
-
-1. **Check help**: `empusa --help`
-2. **Check version**: `empusa --version`
-3. **Run interactive menu**: `empusa`
-4. **Test as module**: `python -m empusa`
-5. **Check platform detection**: Should auto-detect Windows
-
-## Publishing to PyPI (Optional)
-
-To publish your package to PyPI:
-
-```powershell
-# Install twine
-pip install twine
-
-# Build the package
-python -m build
-
-# Upload to Test PyPI first
-python -m twine upload --repository testpypi dist/*
-
-# Then to real PyPI
-python -m twine upload dist/*
-```
-
-After publishing, anyone can install with:
-
-```powershell
-pip install empusa
-# or
-pipx install empusa
-```
-
-## Development Workflow
-
-```powershell
-# 1. Make changes to code
-# 2. Since installed with -e, changes are immediately available
-# 3. Test
-empusa
-
-# 4. Commit changes
-git add .
-git commit -m "Your changes"
-git push
-```
+| Problem | Solution |
+|---------|----------|
+| `command not found: empusa` | Run `pipx ensurepath` and restart your shell |
+| `externally-managed-environment` | Use `pipx` instead of `pip` |
+| `ModuleNotFoundError: rich` | Reinstall: `pipx uninstall empusa && pipx install .` |
+| Nmap scans fail | Ensure `nmap` is on `PATH` (`which nmap`) |
+| Hooks not firing | Check file has `def run(context):` and is `.py` |

@@ -1,0 +1,10 @@
+{
+    "name": "rust-rev-shell",
+    "language": "rust",
+    "description": "TCP reverse shell in Rust \u2014 small, fast, cross-compilable",
+    "compiler": "cargo",
+    "source": "main.rs",
+    "compile_cmd": "cargo build --release --manifest-path {source_dir}/Cargo.toml",
+    "target_os": "any",
+    "output": "rust-rev-shell"
+}

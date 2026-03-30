@@ -4,23 +4,23 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "empusa"
-version = "1.0.0"
-description = "Shape-shifting recon & exploitation framework for OSCP-style workflows."
+version = "2.1.0"
+description = "Shape-shifting recon & exploitation framework workflows."
 authors = [{name = "Amos Parker"}]
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
     "rich>=13.0.0"
 ]
-license = { text = "MIT" }
-keywords = ["security", "penetration-testing", "oscp", "recon", "exploitation", "nmap", "hacking"]
+license = { text = "GPL-3.0-or-later" }
+keywords = ["security", "penetration-testing", "recon", "exploitation", "nmap", "hacking"]
 classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
     "Environment :: Console",
     "Topic :: Security",
     "Operating System :: OS Independent",

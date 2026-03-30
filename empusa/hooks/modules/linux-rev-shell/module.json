@@ -1,0 +1,10 @@
+{
+    "name": "linux-rev-shell",
+    "language": "c",
+    "description": "Linux TCP reverse shell in C",
+    "compiler": "gcc",
+    "source": "main.c",
+    "compile_cmd": "gcc {source} -o {output}",
+    "target_os": "linux",
+    "output": "rev_shell"
+}

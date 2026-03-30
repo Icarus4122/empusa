@@ -1,0 +1,10 @@
+{
+    "name": "win-dll-rev-shell",
+    "language": "cpp",
+    "description": "DLL hijack with reverse shell payload",
+    "compiler": "x86_64-w64-mingw32-g++",
+    "source": "main.cpp",
+    "compile_cmd": "x86_64-w64-mingw32-g++ {source} --shared -o {output} -lws2_32",
+    "target_os": "windows",
+    "output": "hijack_shell.dll"
+}

@@ -1,0 +1,10 @@
+{
+    "name": "win-bind-shell",
+    "language": "c",
+    "description": "Windows TCP bind shell \u2014 listens for incoming connections",
+    "compiler": "x86_64-w64-mingw32-gcc",
+    "source": "main.c",
+    "compile_cmd": "x86_64-w64-mingw32-gcc {source} -o {output} -lws2_32",
+    "target_os": "windows",
+    "output": "bind_shell.exe"
+}

@@ -1,0 +1,10 @@
+{
+    "name": "perl-rev-shell",
+    "language": "perl",
+    "description": "Perl TCP reverse shell \u2014 works on most Linux systems out of the box",
+    "compiler": "perl",
+    "source": "main.pl",
+    "compile_cmd": "perl -c {source}",
+    "target_os": "linux",
+    "output": "main.pl"
+}

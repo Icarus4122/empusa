@@ -1,0 +1,10 @@
+{
+    "name": "win-dll-hijack",
+    "language": "cpp",
+    "description": "DLL hijack \u2014 payload fires on DLL_PROCESS_ATTACH",
+    "compiler": "x86_64-w64-mingw32-g++",
+    "source": "main.cpp",
+    "compile_cmd": "x86_64-w64-mingw32-g++ {source} --shared -o {output}",
+    "target_os": "windows",
+    "output": "hijack.dll"
+}

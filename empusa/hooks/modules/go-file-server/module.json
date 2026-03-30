@@ -1,0 +1,10 @@
+{
+    "name": "go-file-server",
+    "language": "go",
+    "description": "Simple HTTP file server for transfers \u2014 drop-in replacement for python3 -m http.server",
+    "compiler": "go",
+    "source": "main.go",
+    "compile_cmd": "go build -o {output} {source}",
+    "target_os": "any",
+    "output": "fileserver"
+}

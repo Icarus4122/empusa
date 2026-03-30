@@ -1,0 +1,10 @@
+{
+    "name": "go-port-scanner",
+    "language": "go",
+    "description": "Fast concurrent TCP port scanner in Go",
+    "compiler": "go",
+    "source": "main.go",
+    "compile_cmd": "go build -o {output} {source}",
+    "target_os": "any",
+    "output": "scanner"
+}

@@ -1,0 +1,10 @@
+{
+    "name": "win-adduser",
+    "language": "c",
+    "description": "Service binary hijack \u2014 creates a local admin user",
+    "compiler": "x86_64-w64-mingw32-gcc",
+    "source": "main.c",
+    "compile_cmd": "x86_64-w64-mingw32-gcc {source} -o {output}",
+    "target_os": "windows",
+    "output": "adduser.exe"
+}

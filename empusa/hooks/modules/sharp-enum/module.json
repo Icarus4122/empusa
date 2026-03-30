@@ -1,0 +1,10 @@
+{
+    "name": "sharp-enum",
+    "language": "csharp",
+    "description": "Host enumeration \u2014 collects system info, users, network, processes",
+    "compiler": "dotnet",
+    "source": "Program.cs",
+    "compile_cmd": "dotnet build {source_dir} -o {build_dir} -c Release",
+    "target_os": "windows",
+    "output": "sharp-enum.exe"
+}
