@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "empusa"
-version = "2.1.0"
+version = "2.2.0"
 description = "Shape-shifting recon & exploitation framework workflows."
 authors = [{name = "Amos Parker"}]
 readme = "README.md"
@@ -38,3 +38,20 @@ empusa = "empusa.cli:main"
 [tool.setuptools.packages.find]
 where = [""]
 include = ["empusa*"]
+
+[tool.setuptools.package-data]
+empusa = [
+    "hooks/modules/**/*.json",
+    "hooks/modules/**/*.c",
+    "hooks/modules/**/*.cpp",
+    "hooks/modules/**/*.cs",
+    "hooks/modules/**/*.csproj",
+    "hooks/modules/**/*.go",
+    "hooks/modules/**/*.mod",
+    "hooks/modules/**/*.pl",
+    "hooks/modules/**/*.rs",
+    "hooks/modules/**/*.toml",
+    "hooks/modules/**/Makefile",
+    "hooks/modules/**/*.md",
+    "hooks/modules/.gitkeep",
+]

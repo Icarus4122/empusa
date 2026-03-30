@@ -6,7 +6,7 @@ Compilable multi-language plugins managed by the **Module Workshop** (menu optio
 
 Each module lives in its own subdirectory with a `module.json` manifest:
 
-```
+```txt
 modules/
 ├-- my_module/
 │   ├-- module.json    # Manifest: language, compiler, compile command

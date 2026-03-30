@@ -409,6 +409,77 @@ def create_module_template(language: str, name: str) -> Path:
     return mod_dir
 
 
+# -- Render helpers --------------------------------------------------
+
+
+def _list_modules_render() -> Any:
+    """Return the module list as a Rich Table, or a message if empty."""
+    modules = list_modules()
+    if not modules:
+        return "[yellow]No modules found. Use option 4 to create one.[/yellow]"
+
+    table = Table(
+        title="Modules",
+        show_lines=True,
+        border_style="magenta",
+        title_style="bold magenta",
+    )
+    table.add_column("#", style="dim", width=3)
+    table.add_column("Name", style="bold white", min_width=18)
+    table.add_column("Language", style="cyan", min_width=8)
+    table.add_column("Compiler", style="yellow")
+    table.add_column("Target OS", style="green")
+    table.add_column("Built", justify="center", min_width=5)
+    table.add_column("Description", style="dim")
+
+    for i, mod in enumerate(modules, 1):
+        built = "[green]✔[/green]" if mod.get("_compiled") else "[red]✗[/red]"
+        table.add_row(
+            str(i),
+            mod.get("name", "-"),
+            mod.get("language", "-"),
+            mod.get("compiler", "auto"),
+            mod.get("target_os", "any"),
+            built,
+            mod.get("description", "-"),
+        )
+
+    table.caption = f"Total: {len(modules)} module(s)"
+    table.caption_style = "magenta"
+    return table
+
+
+def _detect_compilers_render() -> Table:
+    """Return the compiler detection result as a Rich Table."""
+    compilers = detect_compilers()
+
+    table = Table(
+        title="Available Compilers",
+        show_lines=True,
+        border_style="yellow",
+        title_style="bold yellow",
+    )
+    table.add_column("Language", style="bold white", min_width=10)
+    table.add_column("Checked", style="dim")
+    table.add_column("Found", style="green")
+    table.add_column("Status", justify="center")
+
+    for lang, bins in COMPILER_MAP.items():
+        found = compilers.get(lang, [])
+        status = "[green]✔[/green]" if found else "[red]✗[/red]"
+        table.add_row(
+            lang,
+            ", ".join(bins),
+            ", ".join(found) if found else "-",
+            status,
+        )
+
+    total = sum(len(v) for v in compilers.values())
+    table.caption = f"{total} compiler(s) found across {len(compilers)} language(s)"
+    table.caption_style = "yellow"
+    return table
+
+
 # -- Interactive workshop menu ---------------------------------------
 
 
@@ -416,21 +487,33 @@ def module_workshop(
     services: Optional[Services] = None,
     run_hooks_fn: Optional[Any] = None,
 ) -> None:
-    """Interactive module workshop for compiling multi-language payloads.
+    """Interactive module workshop for compiling multi-language payloads (panel controller).
+
+    Renders a persistent section with a replaceable content area.
+    Actions update the content buffer instead of printing directly.
 
     Args:
         services: Optional Services container (for CommandRunner).
         run_hooks_fn: Optional callback for post_compile hooks.
     """
-    log_info("\n== Module Workshop ==", "bold magenta")
-    log_info(f"Modules directory: [dim]{MODULES_DIR}[/dim]")
-
     # Ensure modules directory exists
     MODULES_DIR.mkdir(parents=True, exist_ok=True)
 
+    # Default content: module list
+    content: Any = _list_modules_render()
+
     while True:
         clear_screen()
-        log_info("\n[bold]Module Workshop Menu:[/]")
+        log_info("\n== Module Workshop ==", "bold magenta")
+        log_info(f"Modules directory: [dim]{MODULES_DIR}[/dim]")
+        console.print("")
+
+        # -- Content area --
+        if content is not None:
+            console.print(content)
+            console.print("")
+
+        log_info("[bold]Module Workshop Menu:[/]")
         log_info("1. List Modules")
         log_info("2. Compile Module")
         log_info("3. Compile All")
@@ -446,46 +529,13 @@ def module_workshop(
             break
 
         elif choice == '1':
-            # List modules
-            modules = list_modules()
-            if not modules:
-                log_info("No modules found. Use option 4 to create one.", "yellow")
-                continue
-
-            table = Table(
-                title="Modules",
-                show_lines=True,
-                border_style="magenta",
-                title_style="bold magenta",
-            )
-            table.add_column("#", style="dim", width=3)
-            table.add_column("Name", style="bold white", min_width=18)
-            table.add_column("Language", style="cyan", min_width=8)
-            table.add_column("Compiler", style="yellow")
-            table.add_column("Target OS", style="green")
-            table.add_column("Built", justify="center", min_width=5)
-            table.add_column("Description", style="dim")
-
-            for i, mod in enumerate(modules, 1):
-                built = "[green]✔[/green]" if mod.get("_compiled") else "[red]✗[/red]"
-                table.add_row(
-                    str(i),
-                    mod.get("name", "-"),
-                    mod.get("language", "-"),
-                    mod.get("compiler", "auto"),
-                    mod.get("target_os", "any"),
-                    built,
-                    mod.get("description", "-"),
-                )
-
-            console.print(table)
-            log_info(f"\nTotal: {len(modules)} module(s)", "magenta")
+            content = _list_modules_render()
 
         elif choice == '2':
             # Compile one module
             modules = list_modules()
             if not modules:
-                log_info("No modules found. Create one first.", "yellow")
+                content = "[yellow]No modules found. Create one first.[/yellow]"
                 continue
 
             log_info("\n[bold yellow]Compile Module[/bold yellow]")
@@ -501,12 +551,13 @@ def module_workshop(
                     log_error("Invalid selection.")
             except ValueError:
                 log_error("Please enter a valid number.")
+            content = _list_modules_render()
 
         elif choice == '3':
             # Compile all modules
             modules = list_modules()
             if not modules:
-                log_info("No modules found.", "yellow")
+                content = "[yellow]No modules found.[/yellow]"
                 continue
 
             log_info(f"\n[bold]Compiling {len(modules)} module(s)...[/bold]")
@@ -518,8 +569,10 @@ def module_workshop(
                 else:
                     fail += 1
 
-            console.print("")
-            log_info(f"Results: [green]{success} succeeded[/green], [red]{fail} failed[/red]", "bold")
+            content = (
+                f"[bold]Compile All Results:[/bold]\n"
+                f"[green]{success} succeeded[/green], [red]{fail} failed[/red]"
+            )
 
         elif choice == '4':
             # Create new module
@@ -553,12 +606,13 @@ def module_workshop(
             mod_dir = create_module_template(language, name)
             log_success(f"[+] Created module: {mod_dir}")
             log_info("Edit the source file, then use option 2 to compile.", "yellow")
+            content = _list_modules_render()
 
         elif choice == '5':
             # Module info
             modules = list_modules()
             if not modules:
-                log_info("No modules found.", "yellow")
+                content = "[yellow]No modules found.[/yellow]"
                 continue
 
             log_info("\n[bold yellow]Module Info[/bold yellow]")
@@ -573,36 +627,10 @@ def module_workshop(
                     log_error("Invalid selection.")
             except ValueError:
                 log_error("Please enter a valid number.")
+            content = _list_modules_render()
 
         elif choice == '6':
-            # Detect compilers
-            log_info("\n[bold yellow]Compiler Detection[/bold yellow]")
-            compilers = detect_compilers()
-
-            table = Table(
-                title="Available Compilers",
-                show_lines=True,
-                border_style="yellow",
-                title_style="bold yellow",
-            )
-            table.add_column("Language", style="bold white", min_width=10)
-            table.add_column("Checked", style="dim")
-            table.add_column("Found", style="green")
-            table.add_column("Status", justify="center")
-
-            for lang, bins in COMPILER_MAP.items():
-                found = compilers.get(lang, [])
-                status = "[green]✔[/green]" if found else "[red]✗[/red]"
-                table.add_row(
-                    lang,
-                    ", ".join(bins),
-                    ", ".join(found) if found else "-",
-                    status,
-                )
-
-            console.print(table)
-            total = sum(len(v) for v in compilers.values())
-            log_info(f"\n{total} compiler(s) found across {len(compilers)} language(s)", "yellow")
+            content = _detect_compilers_render()
 
         elif choice == '7':
             # Open modules folder
@@ -618,3 +646,4 @@ def module_workshop(
             except Exception as e:
                 log_error(f"Could not open directory: {e}")
                 log_info(f"Path: {MODULES_DIR}", "yellow")
+            content = "[green]✔[/green] Opened modules folder"

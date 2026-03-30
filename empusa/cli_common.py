@@ -7,6 +7,7 @@ Symbols shared across the domain-specific CLI modules:
 - **console** - Rich console singleton
 - **log_info / log_error / log_success / log_verbose** - structured output
 - **clear_screen** - terminal clear helper
+- **pause** - wait for Enter before continuing (prevents output wipe)
 - **Path constants** - HOOKS_DIR, MODULES_DIR, PLUGINS_DIR
 - **HOOK_EVENTS** - canonical event name list
 - **IS_WINDOWS / IS_UNIX** - platform flags
@@ -89,6 +90,17 @@ def log_action(action: str, detail: str = "") -> None:
 def clear_screen() -> None:
     """Clear the terminal screen."""
     os.system("cls" if IS_WINDOWS else "clear")
+
+
+def pause() -> None:
+    """Wait for the user to press Enter before the next screen clear.
+
+    Prevents short action output from being wiped by the next loop
+    iteration's ``clear_screen()`` call.  Suppressed in quiet mode.
+    """
+    if not CONFIG["quiet"]:
+        console.print("\n[dim]Press Enter to continue...[/dim]", end="")
+        input()
 
 
 def log_verbose(message: str, style: str = "cyan") -> None:

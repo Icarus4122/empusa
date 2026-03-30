@@ -213,6 +213,8 @@ def privesc_enum_generator() -> None:
         out_path.write_text(full_output + "\n", encoding="utf-8")
         log_success(f"[+] Saved: {out_path}")
 
+    console.input("\n[dim]Press Enter to return to menu…[/dim]")
+
 
 # ═══════════════════════════════════════════════════════════════════
 #  Hash Identifier + Crack Command Builder
@@ -402,6 +404,8 @@ def hash_crack_builder() -> None:
         out_path.write_text(script, encoding="utf-8")
         log_success(f"[+] Saved: {out_path}")
 
+    console.input("\n[dim]Press Enter to return to menu…[/dim]")
+
 
 # ═══════════════════════════════════════════════════════════════════
 #  AD Enumeration Playbook
@@ -558,6 +562,8 @@ def ad_enum_playbook() -> None:
         out_path.write_text(full_output + "\n", encoding="utf-8")
         log_success(f"[+] Saved: {out_path}")
 
+    console.input("\n[dim]Press Enter to return to menu…[/dim]")
+
 
 # ═══════════════════════════════════════════════════════════════════
 #  IP / Port / Hostname validation
@@ -697,6 +703,8 @@ def search_exploits_from_nmap(
         log_success(f"[+] Saved exploit suggestions to: {exploit_log}")
     except Exception as e:
         log_error(f"Error writing exploit log: {e}")
+
+    console.input("\n[dim]Press Enter to return to menu…[/dim]")
 
 
 def run_nmap(
@@ -1454,6 +1462,8 @@ def build_reverse_tunnel() -> None:
         except Exception as e:
             log_error(f"Error saving commands: {e}")
 
+    console.input("\n[dim]Press Enter to return to menu…[/dim]")
+
 
 # ═══════════════════════════════════════════════════════════════════
 #  Hashcat Rule Generator
@@ -1686,6 +1696,8 @@ def generate_hashcat_rules() -> None:
     except Exception as e:
         log_error(f"Error writing rule file: {e}")
 
+    console.input("\n[dim]Press Enter to return to menu…[/dim]")
+
 
 # ═══════════════════════════════════════════════════════════════════
 #  Loot Tracker
@@ -1897,6 +1909,109 @@ def _export_loot_markdown(entries: List[Dict[str, Any]], export_path: Path) -> N
         log_error(f"Error exporting loot: {e}")
 
 
+# -- Loot render helpers (panel controller) --------------------------
+
+
+def _display_loot_table_render(
+    entries: List[Dict[str, Any]], title: str = "Loot Tracker",
+) -> Any:
+    """Return loot entries as a Rich Table, or a message if empty."""
+    if not entries:
+        return "[yellow]No loot entries found.[/yellow]"
+
+    table = Table(title=title, show_lines=True, border_style="cyan")
+    table.add_column("#", style="dim", width=4)
+    table.add_column("Host", style="bold white", min_width=15)
+    table.add_column("Type", style="magenta", min_width=10)
+    table.add_column("Username", style="green", min_width=12)
+    table.add_column("Secret", style="red", min_width=16)
+    table.add_column("Source", style="yellow", min_width=10)
+    table.add_column("Notes", style="dim", min_width=12)
+    table.add_column("Timestamp", style="dim cyan", width=19)
+
+    for i, entry in enumerate(entries, 1):
+        table.add_row(
+            str(i),
+            entry.get("host", ""),
+            entry.get("cred_type", ""),
+            entry.get("username", ""),
+            entry.get("secret", ""),
+            entry.get("source", ""),
+            entry.get("notes", ""),
+            entry.get("timestamp", ""),
+        )
+
+    return table
+
+
+def _reuse_analysis_render(entries: List[Dict[str, Any]]) -> str:
+    """Return credential reuse analysis as formatted Rich markup text."""
+    lines: List[str] = ["[bold yellow]Credential Reuse Analysis[/bold yellow]", ""]
+
+    user_hosts: Dict[str, List[str]] = {}
+    secret_hosts: Dict[str, List[str]] = {}
+
+    for entry in entries:
+        username = entry.get("username", "")
+        secret_val = entry.get("secret", "")
+        host = entry.get("host", "unknown")
+        if username:
+            user_hosts.setdefault(username, []).append(host)
+        if secret_val:
+            secret_hosts.setdefault(secret_val, []).append(host)
+
+    reused_users = {u: list(set(h)) for u, h in user_hosts.items() if len(set(h)) > 1}
+    reused_secrets = {s: list(set(h)) for s, h in secret_hosts.items() if len(set(h)) > 1}
+
+    if reused_users:
+        lines.append("[bold green]Usernames found on multiple hosts:[/bold green]")
+        for user, hosts_list in sorted(reused_users.items()):
+            lines.append(f"  {user}: {', '.join(sorted(hosts_list))}")
+    else:
+        lines.append("[dim]No username reuse detected across hosts.[/dim]")
+
+    if reused_secrets:
+        lines.append("\n[bold green]Secrets/hashes reused across hosts:[/bold green]")
+        for secret_val, hosts_list in sorted(reused_secrets.items()):
+            masked = secret_val[:4] + "****" if len(secret_val) > 4 else "****"
+            lines.append(f"  {masked}: {', '.join(sorted(hosts_list))}")
+    else:
+        lines.append("\n[dim]No secret reuse detected across hosts.[/dim]")
+
+    # Suggestions
+    all_hosts: Set[str] = set()
+    for entry in entries:
+        h = entry.get("host", "unknown")
+        if h != "unknown":
+            all_hosts.add(h)
+
+    if all_hosts and entries:
+        tested_combos: Set[str] = {
+            f"{e.get('username', '')}@{e.get('host', '')}" for e in entries
+        }
+        suggestions: List[str] = []
+        for entry in entries:
+            username = entry.get("username", "")
+            secret_val = entry.get("secret", "")
+            if not username or not secret_val:
+                continue
+            for h in all_hosts:
+                combo = f"{username}@{h}"
+                if combo not in tested_combos:
+                    suggestions.append(
+                        f"  Try {username}:{secret_val[:4]}**** → {h}"
+                    )
+
+        if suggestions:
+            lines.append("\n[bold yellow]Suggested credential sprays:[/bold yellow]")
+            for s in suggestions[:15]:
+                lines.append(s)
+            if len(suggestions) > 15:
+                lines.append(f"  [dim]... and {len(suggestions) - 15} more[/dim]")
+
+    return "\n".join(lines)
+
+
 def loot_tracker(
     *,
     run_hooks_fn: Optional[Callable[..., Any]] = None,
@@ -1928,10 +2043,20 @@ def loot_tracker(
         "ssh-key", "hash-other", "token", "flag", "username", "other",
     ]
 
+    # Default content: loot table
+    content: Any = _display_loot_table_render(entries, title=f"Loot - {env_name}")
+
     while True:
         clear_screen()
         log_info(f"\n[bold cyan]== Loot Tracker [{env_name}] - {len(entries)} entries ==[/bold cyan]")
-        log_info("\n[bold]Loot Tracker Menu:[/]")
+        console.print("")
+
+        # -- Content area --
+        if content is not None:
+            console.print(content)
+            console.print("")
+
+        log_info("[bold]Loot Tracker Menu:[/]")
         log_info("1. Add Loot Entry")
         log_info("2. View All Loot")
         log_info("3. Search Loot")
@@ -1992,9 +2117,10 @@ def loot_tracker(
                 log_info("  Tip: export KRB5CCNAME=<ticket> && impacket-psexec <domain>/<user>@<ip> -k -no-pass", "yellow")
             elif cred_type == "ssh-key":
                 log_info("  Tip: chmod 600 <key> && ssh -i <key> <user>@<host>", "yellow")
+            content = _display_loot_table_render(entries, title=f"Loot - {env_name}")
 
         elif choice == '2':
-            _display_loot_table(entries, title=f"Loot - {env_name}")
+            content = _display_loot_table_render(entries, title=f"Loot - {env_name}")
 
         elif choice == '3':
             log_info("\n[bold yellow]Search Loot[/bold yellow]")
@@ -2015,10 +2141,11 @@ def loot_tracker(
                 ]
 
             _display_loot_table(results, title=f"Search results: '{query}'")
+            content = _display_loot_table_render(results, title=f"Search results: '{query}'")
 
         elif choice == '4':
             if not entries:
-                log_info("No entries to delete.", "yellow")
+                content = "[yellow]No entries to delete.[/yellow]"
                 continue
 
             _display_loot_table(entries, title=f"Loot - {env_name}")
@@ -2035,77 +2162,21 @@ def loot_tracker(
                     log_error("Invalid entry number.")
             except ValueError:
                 log_error("Please enter a valid number.")
+            content = _display_loot_table_render(entries, title=f"Loot - {env_name}")
 
         elif choice == '5':
             entries = _import_env_creds(env_path, entries)
             _save_loot(loot_file, entries)
+            content = _display_loot_table_render(entries, title=f"Loot - {env_name}")
 
         elif choice == '6':
             _sync_loot_to_env_files(env_path, entries)
+            content = "[green]✔[/green] Loot synced to environment files"
 
         elif choice == '7':
-            log_info("\n[bold yellow]Credential Reuse Analysis[/bold yellow]")
-            user_hosts: Dict[str, List[str]] = {}
-            secret_hosts: Dict[str, List[str]] = {}
-
-            for entry in entries:
-                username = entry.get("username", "")
-                secret_val = entry.get("secret", "")
-                host = entry.get("host", "unknown")
-
-                if username:
-                    user_hosts.setdefault(username, []).append(host)
-                if secret_val:
-                    secret_hosts.setdefault(secret_val, []).append(host)
-
-            reused_users = {u: list(set(h)) for u, h in user_hosts.items() if len(set(h)) > 1}
-            reused_secrets = {s: list(set(h)) for s, h in secret_hosts.items() if len(set(h)) > 1}
-
-            if reused_users:
-                log_info("\n[bold green]Usernames found on multiple hosts:[/bold green]")
-                for user, hosts_list in sorted(reused_users.items()):
-                    log_info(f"  {user}: {', '.join(sorted(hosts_list))}")
-            else:
-                log_info("No username reuse detected across hosts.", "dim")
-
-            if reused_secrets:
-                log_info("\n[bold green]Secrets/hashes reused across hosts:[/bold green]")
-                for secret_val, hosts_list in sorted(reused_secrets.items()):
-                    masked = secret_val[:4] + "****" if len(secret_val) > 4 else "****"
-                    log_info(f"  {masked}: {', '.join(sorted(hosts_list))}")
-            else:
-                log_info("No secret reuse detected across hosts.", "dim")
-
-            all_hosts: Set[str] = set()
-            for entry in entries:
-                h = entry.get("host", "unknown")
-                if h != "unknown":
-                    all_hosts.add(h)
-
-            if all_hosts and entries:
-                tested_combos: Set[str] = {
-                    f"{e.get('username', '')}@{e.get('host', '')}" for e in entries
-                }
-                suggestions: List[str] = []
-                for entry in entries:
-                    username = entry.get("username", "")
-                    secret_val = entry.get("secret", "")
-                    if not username or not secret_val:
-                        continue
-                    for h in all_hosts:
-                        combo = f"{username}@{h}"
-                        if combo not in tested_combos:
-                            suggestions.append(
-                                f"  Try {username}:{secret_val[:4]}**** → {h}"
-                            )
-
-                if suggestions:
-                    log_info("\n[bold yellow]Suggested credential sprays:[/bold yellow]")
-                    for s in suggestions[:15]:
-                        log_info(s)
-                    if len(suggestions) > 15:
-                        log_info(f"  ... and {len(suggestions) - 15} more", "dim")
+            content = _reuse_analysis_render(entries)
 
         elif choice == '8':
             export_path = env_path / "loot_report.md"
             _export_loot_markdown(entries, export_path)
+            content = f"[green]✔[/green] Loot report exported to: {export_path}"

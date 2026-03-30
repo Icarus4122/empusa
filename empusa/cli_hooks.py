@@ -218,6 +218,35 @@ def create_example_hook(event: str) -> Path:
 # -- Option 1: List Installed Hooks ---------------------------------
 
 
+def list_hooks_render() -> Table:
+    """Return the installed hooks as a Rich Table (no console output).
+
+    Used by the panel controller to populate the content area.
+    """
+    hooks = list_hooks()
+    table = Table(
+        title="Installed Hooks",
+        show_lines=True,
+        border_style="cyan",
+        title_style="bold cyan",
+    )
+    table.add_column("Event", style="bold white", min_width=20)
+    table.add_column("Scripts", style="green")
+
+    total = 0
+    for evt in HOOK_EVENTS:
+        scripts = hooks.get(evt, [])
+        total += len(scripts)
+        if scripts:
+            table.add_row(evt, "\n".join(scripts))
+        else:
+            table.add_row(evt, "[dim]- none -[/dim]")
+
+    table.caption = f"Total: {total} hook script(s) across {len(HOOK_EVENTS)} events"
+    table.caption_style = "cyan"
+    return table
+
+
 def list_hooks_ui() -> None:
     """Display a table of all installed hooks grouped by event."""
     hooks = list_hooks()

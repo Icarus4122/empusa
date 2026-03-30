@@ -17,7 +17,7 @@ from __future__ import annotations
 import os
 import platform
 import subprocess
-from typing import List, Optional, TYPE_CHECKING
+from typing import Any, List, Optional, TYPE_CHECKING
 
 from rich.prompt import Prompt, Confirm
 from rich.table import Table
@@ -38,6 +38,58 @@ if TYPE_CHECKING:
 
 
 # -- Option 6: List / Status Plugins --------------------------------
+
+
+def list_plugins_render(plugin_manager: Optional[PluginManager]) -> Any:
+    """Return plugin status as a Rich Table (no console output).
+
+    Used by the panel controller to populate the content area.
+    Returns a Table when plugins exist, or a markup string otherwise.
+    """
+    if plugin_manager is None:
+        return "[bold red]Plugin system not initialized.[/bold red]"
+    plugins = plugin_manager.plugins
+    if not plugins:
+        return (
+            f"[yellow]No plugins installed.[/yellow]\n"
+            f"[dim]Create one with option 7, or drop a folder into:\n  {PLUGINS_DIR}[/dim]"
+        )
+
+    table = Table(
+        title="Installed Plugins",
+        show_lines=True,
+        border_style="magenta",
+        title_style="bold magenta",
+    )
+    table.add_column("Name", style="bold white")
+    table.add_column("Version", style="cyan")
+    table.add_column("Status", min_width=10)
+    table.add_column("Events", style="dim")
+    table.add_column("Description")
+
+    for desc in plugins.values():
+        if desc.activated:
+            status = "[bold green]● active[/bold green]"
+        elif not desc.activatable:
+            status = "[bold red]✗ blocked[/bold red]"
+        elif desc.enabled:
+            status = "[yellow]○ enabled[/yellow]"
+        else:
+            status = "[dim]✗ disabled[/dim]"
+        table.add_row(
+            desc.name,
+            desc.version,
+            status,
+            ", ".join(desc.events) if desc.events else "[dim]none[/dim]",
+            desc.description,
+        )
+
+    table.caption = (
+        f"{plugin_manager.active_count()} active / "
+        f"{plugin_manager.plugin_count()} total"
+    )
+    table.caption_style = "magenta"
+    return table
 
 
 def list_plugins(plugin_manager: Optional[PluginManager]) -> None:
@@ -286,6 +338,43 @@ def uninstall_plugin_ui(plugin_manager: Optional[PluginManager]) -> None:
 
 
 # -- Option 11: Capability Registry ---------------------------------
+
+
+def show_registry_render(reg: Optional[CapabilityRegistry]) -> Any:
+    """Return the capability registry as a Rich Table (no console output).
+
+    Used by the panel controller to populate the content area.
+    Returns a Table when entries exist, or a markup string otherwise.
+    """
+    if reg is None:
+        return "[bold red]Registry not available.[/bold red]"
+    summary = reg.summary()
+    total = sum(summary.values())
+
+    if total == 0:
+        return (
+            "[yellow]Capability registry is empty.[/yellow]\n"
+            "[dim]Plugins register capabilities when activated.[/dim]"
+        )
+
+    table = Table(
+        title="Capability Registry",
+        show_lines=True,
+        border_style="yellow",
+        title_style="bold yellow",
+    )
+    table.add_column("Category", style="bold white")
+    table.add_column("Count", style="cyan", justify="right")
+    table.add_column("Entries", style="green")
+
+    for cat, count in summary.items():
+        entries = reg.get(cat)
+        names_str = ", ".join(e.name for e in entries) if entries else "[dim]-[/dim]"
+        table.add_row(cat, str(count), names_str)
+
+    table.caption = f"Total: {total} registered capability/ies"
+    table.caption_style = "yellow"
+    return table
 
 
 def show_registry(reg: Optional[CapabilityRegistry]) -> None:

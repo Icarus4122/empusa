@@ -27,13 +27,16 @@ from empusa.cli_common import (
     log_verbose, log_info, log_error, log_success,
 )
 from empusa.cli_plugins import (
-    list_plugins, create_plugin, toggle_plugin,
-    plugin_info, uninstall_plugin_ui, show_registry,
+    list_plugins_render,
+    create_plugin, toggle_plugin,
+    plugin_info, uninstall_plugin_ui,
+    show_registry_render,
     open_plugins_dir,
 )
 from empusa.cli_hooks import (
     init_hook_dirs, run_hooks as _run_hooks, set_event_bus,
-    list_hooks_ui, create_hook_ui, open_hooks_dir,
+    list_hooks_render,
+    create_hook_ui, open_hooks_dir,
     test_fire_hook, delete_hook_ui,
 )
 from empusa.cli_modules import module_workshop
@@ -62,19 +65,28 @@ services: Optional[Services] = None
 
 
 def manage_hooks() -> None:
-    """Interactive hook and plugin manager.
+    """Interactive hook and plugin manager (panel controller).
 
-    Combines legacy hook management with the full plugin framework:
-    Hooks (Layer 2) - lightweight reactive scripts
-    Plugins (Layer 3) - full-featured extensions with manifests, config, and capabilities
+    Renders a persistent section with a replaceable content area.
+    Actions update the content buffer instead of printing directly,
+    so output persists until the next action is chosen.
     """
-    log_info("\n== Plugin & Hook Manager ==", "bold cyan")
-    log_info(f"Hooks dir:   [dim]{HOOKS_DIR}[/dim]")
-    log_info(f"Plugins dir: [dim]{PLUGINS_DIR}[/dim]")
+    # Default content: hooks overview
+    content: Any = list_hooks_render()
 
     while True:
         clear_screen()
-        log_info("\n[bold]Manager Menu:[/]")
+        log_info("\n== Plugin & Hook Manager ==", "bold cyan")
+        log_info(f"Hooks dir:   [dim]{HOOKS_DIR}[/dim]")
+        log_info(f"Plugins dir: [dim]{PLUGINS_DIR}[/dim]")
+        console.print("")
+
+        # -- Content area --
+        if content is not None:
+            console.print(content)
+            console.print("")
+
+        log_info("[bold]Manager Menu:[/]")
         log_info("[bold cyan]-- Hooks (Layer 2) --[/bold cyan]")
         log_info("1. List Installed Hooks")
         log_info("2. Create Example Hook")
@@ -97,42 +109,39 @@ def manage_hooks() -> None:
 
         if choice == '0':
             break
-
         elif choice == '1':
-            list_hooks_ui()
-
+            content = list_hooks_render()
         elif choice == '2':
             create_hook_ui()
-
+            content = list_hooks_render()
         elif choice == '3':
             open_hooks_dir()
-
+            content = "[green]✔[/green] Opened hooks directory"
         elif choice == '4':
             test_fire_hook()
-
+            content = list_hooks_render()
         elif choice == '5':
             delete_hook_ui()
-
+            content = list_hooks_render()
         elif choice == '6':
-            list_plugins(plugin_manager)
-
+            content = list_plugins_render(plugin_manager)
         elif choice == '7':
             create_plugin(plugin_manager)
-
+            content = list_plugins_render(plugin_manager)
         elif choice == '8':
             toggle_plugin(plugin_manager)
-
+            content = list_plugins_render(plugin_manager)
         elif choice == '9':
             plugin_info(plugin_manager)
-
+            content = list_plugins_render(plugin_manager)
         elif choice == '10':
             uninstall_plugin_ui(plugin_manager)
-
+            content = list_plugins_render(plugin_manager)
         elif choice == '11':
-            show_registry(registry)
-
+            content = show_registry_render(registry)
         elif choice == '12':
             open_plugins_dir()
+            content = "[green]✔[/green] Opened plugins directory"
 
 
 
@@ -502,6 +511,8 @@ def main_menu() -> None:
         clear_screen()
         print_banner()
 
+    content: Any = None  # content buffer for action summaries
+
     while True:
         # Clear the previous iteration's output, then show fresh context
         clear_screen()
@@ -512,7 +523,14 @@ def main_menu() -> None:
             summarize_hosts(CONFIG['session_env'])
             console.print("")
         summarize_command()
+
+        # -- Content area --
+        if content is not None:
+            console.print("")
+            console.print(content)
+
         choice = Prompt.ask("Select an option")
+        content = None  # reset each iteration
 
         if choice == '1':
             env_name = _ask_env()
@@ -544,12 +562,15 @@ def main_menu() -> None:
                             nmap_f = sub / "nmap" / "full_scan.txt"
                             if nmap_f.exists():
                                 search_exploits_from_nmap(nmap_f, services=services)
+                    content = "[green]✔[/green] Exploit search complete"
                 elif nxt == '2':
                     log_action("Reverse Tunnel", "Post-build")
                     build_reverse_tunnel()
+                    content = "[green]✔[/green] Reverse tunnel configured"
                 elif nxt == '3':
                     log_action("Hashcat Rules", "Post-build")
                     generate_hashcat_rules()
+                    content = "[green]✔[/green] Hashcat rules generated"
                 elif nxt == '4':
                     log_action("Loot Tracker", "Post-build")
                     loot_tracker(run_hooks_fn=_run_hooks, ask_env_fn=_ask_env)
@@ -558,16 +579,22 @@ def main_menu() -> None:
                     report_builder(registry=registry, run_hooks_fn=_run_hooks, ask_env_fn=_ask_env)
         elif choice == '2':
             log_action("Reverse Tunnel", "Builder")
+            clear_screen()
             build_reverse_tunnel()
+
         elif choice == '3':
             log_action("Hashcat Rules", "Generator")
+            clear_screen()
             generate_hashcat_rules()
+
         elif choice == '4':
             env_name = _ask_env()
             ip_target = Prompt.ask("Enter target IP or folder format (e.g., 10.10.10.10-Windows)")
             log_action("Exploit Search", f"{env_name}/{ip_target}")
+            clear_screen()
             nmap_path = Path(env_name) / ip_target / "nmap" / "full_scan.txt"
             search_exploits_from_nmap(nmap_path, services=services)
+
         elif choice == '5':
             log_action("Loot Tracker", CONFIG.get('session_env', ''))
             loot_tracker(run_hooks_fn=_run_hooks, ask_env_fn=_ask_env)
@@ -578,6 +605,7 @@ def main_menu() -> None:
             _select_environment(envs)
             if CONFIG['session_env']:
                 log_action("Switch Environment", CONFIG['session_env'])
+                content = f"[green]✔[/green] Active environment: {CONFIG['session_env']}"
         elif choice == '8':
             log_action("Manage Hooks", "Plugin manager")
             manage_hooks()
@@ -586,13 +614,19 @@ def main_menu() -> None:
             module_workshop(services=services, run_hooks_fn=_run_hooks)
         elif choice == '10':
             log_action("Privesc Enum", CONFIG.get('session_env', ''))
+            clear_screen()
             privesc_enum_generator()
+
         elif choice == '11':
             log_action("Hash Crack Builder", CONFIG.get('session_env', ''))
+            clear_screen()
             hash_crack_builder()
+
         elif choice == '12':
             log_action("AD Playbook", CONFIG.get('session_env', ''))
+            clear_screen()
             ad_enum_playbook()
+
         elif choice == '0':
             _shutdown()
             break

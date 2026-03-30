@@ -5,6 +5,47 @@ All notable changes to Empusa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.2.0] - 2026-03-30
+
+### Added
+
+- **Panel controller architecture** - `manage_hooks()`, `module_workshop()`,
+  and `loot_tracker()` now use a persistent content area that renders above
+  the menu. Action results replace the content buffer instead of printing
+  directly, so output persists across loop iterations until the next action.
+- **"Press Enter to return" prompts** - Added to 6 command-generator functions
+  (`privesc_enum_generator`, `hash_crack_builder`, `ad_enum_playbook`,
+  `build_reverse_tunnel`, `generate_hashcat_rules`, `search_exploits_from_nmap`)
+  so output isn't wiped by the next `clear_screen()`.
+- **Post-build sub-menu** - Enhanced from 5 to 8 options with OS-aware hints.
+  New options: Privesc Enumeration Generator (with Linux/Windows hint),
+  Hash Identifier + Crack Builder, AD Enumeration Playbook (with "Windows
+  detected" hint). OS detection reads host folder naming convention (`IP-OS`).
+- **Render helper functions** - `list_hooks_render()`, `list_plugins_render()`,
+  `show_registry_render()`, `_list_modules_render()`,
+  `_detect_compilers_render()`, `_display_loot_table_render()`,
+  `_reuse_analysis_render()` return Rich renderables for panel controllers.
+
+### Changed
+
+- **README.md** - Full rewrite with emoji section headers, structured tables,
+  plugin development guide, and correct module language list (C, C++, C#, Go,
+  Rust, Perl, Make). Python badge corrected from 3.11+ to 3.9+.
+
+### Fixed
+
+- **Module packaging** - `pyproject.toml` now declares `[tool.setuptools.package-data]`
+  for all 13 module file patterns (`.json`, `.c`, `.cpp`, `.cs`, `.csproj`,
+  `.go`, `.mod`, `.pl`, `.rs`, `.toml`, `Makefile`, `.md`, `.gitkeep`).
+  `MANIFEST.in` updated to match. Previously, `pipx install .` shipped an
+  empty `hooks/modules/` directory, so zero built-in modules were available
+  after install.
+- **Content ordering** - Panel controllers now render content *above* the menu
+  instead of below it, matching the expected UX flow.
+- **Stale content messages** - Removed redundant `content = "✔ …"` messages
+  from `main_menu()` choices that call functions already holding the screen
+  with their own "Press Enter" prompt.
+
 ## [2.1.0] - 2026-03-29
 
 ### Added

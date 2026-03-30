@@ -5,4 +5,5 @@ include SECURITY.md
 include CONTRIBUTING
 include requirements.txt
 recursive-include empusa *.py
-recursive-include empusa/hooks *.py *.md .gitkeep
+recursive-include empusa/hooks *.json *.c *.cpp *.cs *.csproj *.go *.mod *.pl *.rs *.toml *.md .gitkeep
+include empusa/hooks/modules/make-multi-target/Makefile
