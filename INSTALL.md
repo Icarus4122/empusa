@@ -65,7 +65,7 @@ The Dockerfile installs `nmap` and `exploitdb` automatically.
 ### Verify the installation
 
 ```bash
-empusa --version   # Should print 2.1.0
+empusa --version   # Should print 2.2.0
 empusa --help      # Show CLI flags
 ```
 

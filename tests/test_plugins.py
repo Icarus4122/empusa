@@ -295,6 +295,65 @@ class TestEnableBlockedPlugin(unittest.TestCase):
         self.assertFalse(pm.plugins["bad"].activated)
 
 
+class TestRefreshLifecycle(unittest.TestCase):
+    """refresh() must deactivate, re-discover, resolve, and re-activate."""
+
+    def setUp(self) -> None:
+        self.tmp = Path(tempfile.mkdtemp())
+        self.plugins_dir = self.tmp / "plugins"
+        self.plugins_dir.mkdir()
+        self.svc = _make_services(self.tmp)
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_refresh_reactivates_healthy_plugins(self) -> None:
+        _write_plugin(self.plugins_dir, "alpha", permissions=["loot_read"])
+        pm = PluginManager(self.plugins_dir, services=self.svc)
+        pm.discover()
+        pm.resolve_dependencies()
+        pm.activate_all()
+        self.assertTrue(pm.plugins["alpha"].activated)
+
+        # Refresh should deactivate + re-activate cleanly
+        warnings = pm.refresh()
+        self.assertTrue(pm.plugins["alpha"].activated)
+        self.assertEqual(warnings, [])
+
+    def test_refresh_picks_up_new_plugin(self) -> None:
+        _write_plugin(self.plugins_dir, "first", permissions=["loot_read"])
+        pm = PluginManager(self.plugins_dir, services=self.svc)
+        pm.discover()
+        pm.resolve_dependencies()
+        pm.activate_all()
+        self.assertEqual(pm.plugin_count(), 1)
+
+        # Add a second plugin on disk, then refresh
+        _write_plugin(self.plugins_dir, "second", permissions=["filesystem"])
+        pm.refresh()
+        self.assertEqual(pm.plugin_count(), 2)
+        self.assertIn("second", pm.plugins)
+        self.assertTrue(pm.plugins["second"].activated)
+
+    def test_refresh_blocks_newly_broken_plugin(self) -> None:
+        _write_plugin(self.plugins_dir, "good")
+        pm = PluginManager(self.plugins_dir, services=self.svc)
+        pm.discover()
+        pm.resolve_dependencies()
+        pm.activate_all()
+        self.assertTrue(pm.plugins["good"].activated)
+
+        # Corrupt the manifest to add a bad permission
+        manifest = self.plugins_dir / "good" / "manifest.json"
+        raw = json.loads(manifest.read_text(encoding="utf-8"))
+        raw["permissions"] = ["teleport"]
+        manifest.write_text(json.dumps(raw), encoding="utf-8")
+
+        _warnings = pm.refresh()  # noqa: F841
+        self.assertFalse(pm.plugins["good"].activatable)
+        self.assertFalse(pm.plugins["good"].activated)
+
+
 # -- ScopedServices Tests -------------------------------------------
 
 

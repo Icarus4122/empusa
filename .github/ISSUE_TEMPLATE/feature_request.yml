@@ -1,0 +1,50 @@
+name: Feature Request
+description: Suggest an enhancement or new feature
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting an improvement to Empusa.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or motivation
+      description: What limitation or pain point does this address?
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: Describe the feature or change you would like.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any other approaches you have thought about.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - CLI / Interactive menu
+        - Environment builder
+        - Loot tracker
+        - Report builder
+        - Hooks
+        - Plugins
+        - Module Workshop
+        - Packaging / Installation
+        - Documentation
+        - Other
+    validations:
+      required: true

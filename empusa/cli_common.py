@@ -36,11 +36,49 @@ CONFIG: Dict[str, Any] = {
     "no_color": False,
     "max_workers": 8,
     "session_env": "",
+    "enable_shell_hooks": False,
 }
 
 SESSION_ACTIONS: List[Dict[str, str]] = []
 
 console = Console()
+
+
+def set_console(new_console: Console) -> None:
+    """Replace the global console singleton.
+
+    Also propagates to every submodule that cached ``console`` at
+    import time, so ``--no-color`` takes effect everywhere.
+    """
+    import sys
+
+    global console
+    console = new_console
+
+    # Propagate to modules that did `from empusa.cli_common import console`
+    _console_modules = (
+        "empusa.cli_build",
+        "empusa.cli_modules",
+        "empusa.cli_plugins",
+        "empusa.cli_hooks",
+        "empusa.cli_reports",
+        "empusa.cli",
+    )
+    for mod_name in _console_modules:
+        mod = sys.modules.get(mod_name)
+        if mod is not None and hasattr(mod, "console"):
+            mod.console = new_console  # type: ignore[attr-defined]
+
+
+def get_console() -> Console:
+    """Return the current global console singleton.
+
+    Modules that need the *live* console reference (e.g. for direct
+    ``console.print()`` calls) should call this function rather than
+    caching the import-time ``console`` object, because
+    :func:`set_console` may replace it later (e.g. ``--no-color``).
+    """
+    return console
 
 
 # -- Platform flags --------------------------------------------------
@@ -92,6 +130,61 @@ def clear_screen() -> None:
     os.system("cls" if IS_WINDOWS else "clear")
 
 
+def print_mini_banner() -> None:
+    """Print a compact one-line Empusa identity bar.
+
+    Used by submenus (hooks manager, module workshop, loot tracker)
+    so the shell identity persists on every redraw without eating
+    vertical space the way the full banner does.
+    """
+    if CONFIG["quiet"]:
+        return
+    from empusa import __version__ as _ver  # lightweight: __init__.py is metadata-only
+    console.print(
+        f"[bold red]◆ Empusa[/bold red] [dim]v{_ver}[/dim]  "
+        f"[dim]|[/dim]  [italic dim]Shape-shifting Recon & Exploitation Framework[/italic dim]"
+    )
+    console.print()
+
+
+def print_section_header(title: str, style: str = "bold cyan") -> None:
+    """Print a consistent section header with a horizontal rule.
+
+    Provides visual hierarchy: mini-banner → section header → content.
+    """
+    if CONFIG["quiet"]:
+        return
+    console.rule(f"[{style}]{title}[/{style}]", style="dim")
+    console.print()
+
+
+def render_screen(title: str, subtitle: Optional[str] = None) -> None:
+    """Clear the terminal and draw the standard submenu chrome.
+
+    Sequence: ``clear_screen → print_mini_banner → print_section_header``
+    plus an optional italic subtitle line.  Every interactive submenu
+    should call this once at the top of its redraw loop.
+    """
+    clear_screen()
+    print_mini_banner()
+    print_section_header(title)
+    if subtitle and not CONFIG["quiet"]:
+        console.print(f"[italic dim]{subtitle}[/italic dim]")
+        console.print()
+
+
+def render_kv(label: str, value: str) -> None:
+    """Print a key-value row with a fixed-width bold label."""
+    if not CONFIG["quiet"]:
+        console.print(f"  [bold]{label:<14}[/bold] {value}")
+
+
+def render_group_heading(label: str, style: str = "bold cyan") -> None:
+    """Print a lightweight section-group heading inside a menu."""
+    if not CONFIG["quiet"]:
+        console.print(f"\n[{style}]{label}[/{style}]")
+
+
 def pause() -> None:
     """Wait for the user to press Enter before the next screen clear.
 
@@ -116,8 +209,13 @@ def log_info(message: str, style: str = "cyan") -> None:
 
 
 def log_error(message: str) -> None:
-    """Always print error messages."""
-    console.print(message, style="bold red")
+    """Always print error messages.
+
+    Uses ``markup=False`` so arbitrary strings (compiler output,
+    file paths containing ``[`` / ``]``) are rendered literally
+    instead of being interpreted as Rich markup tags.
+    """
+    console.print(message, style="bold red", markup=False)
 
 
 def log_success(message: str) -> None:

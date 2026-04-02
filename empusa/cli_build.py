@@ -54,13 +54,14 @@ from empusa.cli_common import (
     IS_UNIX,
     IS_WINDOWS,
     check_tool_exists,
-    clear_screen,
     console,
     load_loot,
     log_error,
     log_info,
     log_success,
     log_verbose,
+    render_screen,
+    render_group_heading,
     sanitize_filename,
 )
 
@@ -133,8 +134,7 @@ LINUX_ENUM_COMMANDS: List[Tuple[str, str]] = [
 
 def privesc_enum_generator() -> None:
     """Interactive privilege escalation enumeration command generator."""
-    log_info("\n== Privesc Enumeration Generator ==", "bold yellow")
-    log_info("Generates ready-to-paste enumeration commands for privesc.\n")
+    render_screen("Privesc Enumeration Generator", "Generates ready-to-paste enumeration commands for privesc.")
 
     log_info("Target OS:")
     log_info("1. Windows")
@@ -213,8 +213,6 @@ def privesc_enum_generator() -> None:
         out_path.write_text(full_output + "\n", encoding="utf-8")
         log_success(f"[+] Saved: {out_path}")
 
-    console.input("\n[dim]Press Enter to return to menu…[/dim]")
-
 
 # ═══════════════════════════════════════════════════════════════════
 #  Hash Identifier + Crack Command Builder
@@ -252,6 +250,11 @@ HASH_SIGNATURES: List[Tuple[int, str, str]] = [
 ]
 
 
+def identify_hash(hash_str: str) -> List[Tuple[int, str]]:
+    """Public wrapper for :func:`_identify_hash`."""
+    return _identify_hash(hash_str)
+
+
 def _identify_hash(hash_str: str) -> List[Tuple[int, str]]:
     """Identify possible hash types by matching against known patterns.
 
@@ -285,8 +288,7 @@ def _identify_hash(hash_str: str) -> List[Tuple[int, str]]:
 
 def hash_crack_builder() -> None:
     """Interactive hash identifier and hashcat command builder."""
-    log_info("\n== Hash Identifier + Crack Command Builder ==", "bold green")
-    log_info("Paste a hash to identify it and generate the hashcat command.\n")
+    render_screen("Hash Identifier + Crack Command Builder", "Paste a hash to identify it and generate the hashcat command.")
 
     hash_input = Prompt.ask("Enter hash (or 'q' to quit)").strip()
     if hash_input.lower() == "q":
@@ -404,8 +406,6 @@ def hash_crack_builder() -> None:
         out_path.write_text(script, encoding="utf-8")
         log_success(f"[+] Saved: {out_path}")
 
-    console.input("\n[dim]Press Enter to return to menu…[/dim]")
-
 
 # ═══════════════════════════════════════════════════════════════════
 #  AD Enumeration Playbook
@@ -413,8 +413,7 @@ def hash_crack_builder() -> None:
 
 def ad_enum_playbook() -> None:
     """Generate pre-filled Active Directory enumeration commands."""
-    log_info("\n== AD Enumeration Playbook ==", "bold blue")
-    log_info("Generates ready-to-paste AD enumeration commands.\n")
+    render_screen("AD Enumeration Playbook", "Generates ready-to-paste AD enumeration commands.")
 
     domain = Prompt.ask("Domain name (e.g., corp.com)").strip()
     if not domain:
@@ -562,8 +561,6 @@ def ad_enum_playbook() -> None:
         out_path.write_text(full_output + "\n", encoding="utf-8")
         log_success(f"[+] Saved: {out_path}")
 
-    console.input("\n[dim]Press Enter to return to menu…[/dim]")
-
 
 # ═══════════════════════════════════════════════════════════════════
 #  IP / Port / Hostname validation
@@ -703,8 +700,6 @@ def search_exploits_from_nmap(
         log_success(f"[+] Saved exploit suggestions to: {exploit_log}")
     except Exception as e:
         log_error(f"Error writing exploit log: {e}")
-
-    console.input("\n[dim]Press Enter to return to menu…[/dim]")
 
 
 def run_nmap(
@@ -1097,7 +1092,13 @@ def build_env(
     passwords_file.touch()
     commands_log_file.touch()
 
-    configure_shell_history(commands_log_file)
+    # Shell history logging is opt-in to avoid mutating the operator's
+    # shell profile (especially important in CI / containers).
+    if Confirm.ask(
+        "[yellow]Enable shell history logging for this env?[/yellow]",
+        default=False,
+    ):
+        configure_shell_history(commands_log_file)
 
     ip_dirs: Dict[str, Path] = {}
     for ip in valid_ips:
@@ -1175,8 +1176,8 @@ def build_env(
 
 def build_reverse_tunnel() -> None:
     """Interactive builder for reverse tunnels and port forwarding with multiple tools."""
-    log_info("\n== Reverse Tunnel & Port Forward Builder ==", "bold cyan")
-    log_info("\n[bold]Choose Tunnel Type:[/]")
+    render_screen("Reverse Tunnel & Port Forward Builder")
+    log_info("[bold]Choose Tunnel Type:[/]")
     log_info("1. Chisel (SOCKS5 proxy)")
     log_info("2. SSH Reverse Tunnel (-R)")
     log_info("3. SSH Local Tunnel (-L)")
@@ -1427,7 +1428,7 @@ def build_reverse_tunnel() -> None:
             ])
 
     # Display commands
-    log_info(f"\n[bold green]=== {tunnel_name} Commands ===[/bold green]")
+    render_group_heading(f"{tunnel_name} Commands", "bold green")
     for label, cmd in commands:
         log_info(f"\n[cyan]{label}:[/cyan]")
         if not CONFIG['quiet']:
@@ -1462,8 +1463,6 @@ def build_reverse_tunnel() -> None:
         except Exception as e:
             log_error(f"Error saving commands: {e}")
 
-    console.input("\n[dim]Press Enter to return to menu…[/dim]")
-
 
 # ═══════════════════════════════════════════════════════════════════
 #  Hashcat Rule Generator
@@ -1492,7 +1491,7 @@ def find_password_files(domain: str, search_path: Optional[Path] = None) -> List
 
 def generate_hashcat_rules() -> None:
     """Generate hashcat rules from password patterns in environment password file."""
-    log_info("\n== Hashcat Rule Generator ==", "bold cyan")
+    render_screen("Hashcat Rule Generator")
 
     domain = Prompt.ask("Enter domain/environment name (used in filename)").strip().rstrip('/')
 
@@ -1695,8 +1694,6 @@ def generate_hashcat_rules() -> None:
         log_info(f"\nUsage: hashcat -a 0 -m <mode> <hashfile> <wordlist> -r {rule_file}", "yellow")
     except Exception as e:
         log_error(f"Error writing rule file: {e}")
-
-    console.input("\n[dim]Press Enter to return to menu…[/dim]")
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -2018,8 +2015,6 @@ def loot_tracker(
     ask_env_fn: Optional[Callable[..., str]] = None,
 ) -> None:
     """Interactive loot tracker for managing credentials, hashes, and flags."""
-    log_info("\n== Loot Tracker ==", "bold cyan")
-
     if ask_env_fn is not None:
         env_name = ask_env_fn()
     else:
@@ -2047,9 +2042,7 @@ def loot_tracker(
     content: Any = _display_loot_table_render(entries, title=f"Loot - {env_name}")
 
     while True:
-        clear_screen()
-        log_info(f"\n[bold cyan]== Loot Tracker [{env_name}] - {len(entries)} entries ==[/bold cyan]")
-        console.print("")
+        render_screen(f"Loot Tracker [{env_name}] \u2014 {len(entries)} entries")
 
         # -- Content area --
         if content is not None:

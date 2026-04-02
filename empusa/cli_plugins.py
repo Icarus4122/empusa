@@ -14,6 +14,7 @@ Interactive UI for managing the plugin lifecycle:
 
 from __future__ import annotations
 
+import json
 import os
 import platform
 import subprocess
@@ -30,6 +31,7 @@ from empusa.cli_common import (
     log_error,
     log_info,
     log_success,
+    render_group_heading,
 )
 
 if TYPE_CHECKING:
@@ -149,7 +151,7 @@ def create_plugin(plugin_manager: Optional[PluginManager]) -> None:
         log_error("Plugin system not initialized.")
         return
 
-    log_info("\n[bold magenta]Create New Plugin[/bold magenta]")
+    render_group_heading("Create New Plugin", "bold magenta")
     name = Prompt.ask("Plugin name (slug)").strip().lower().replace(" ", "_")
     if not name:
         log_error("Name required.")
@@ -186,8 +188,11 @@ def create_plugin(plugin_manager: Optional[PluginManager]) -> None:
     log_success(f"[+] Created plugin scaffold: {path}")
     log_info("Edit plugin.py to implement your logic.", "yellow")
 
-    # Re-discover so it shows up
-    plugin_manager.discover()
+    # Full lifecycle refresh so the new plugin is dependency-resolved
+    # and any existing active plugins remain in a consistent state.
+    warnings = plugin_manager.refresh()
+    for w in warnings:
+        log_info(f"  [yellow]⚠[/yellow] {w}", "yellow")
 
 
 # -- Option 8: Enable / Disable Plugin ------------------------------
@@ -203,7 +208,7 @@ def toggle_plugin(plugin_manager: Optional[PluginManager]) -> None:
         log_info("No plugins installed.", "yellow")
         return
 
-    log_info("\n[bold magenta]Enable / Disable Plugin[/bold magenta]")
+    render_group_heading("Enable / Disable Plugin", "bold magenta")
     names = list(plugins.keys())
     for i, n in enumerate(names, 1):
         d = plugins[n]
@@ -296,9 +301,14 @@ def plugin_info(plugin_manager: Optional[PluginManager]) -> None:
 
             if Confirm.ask("\nEdit a config value?", default=False):
                 key = Prompt.ask("Key").strip()
-                val = Prompt.ask("Value").strip()
-                plugin_manager.set_plugin_config(d.name, key, val)
-                log_success(f"[+] Set {key} = {val}")
+                raw_val = Prompt.ask("Value").strip()
+                # Attempt JSON parse to preserve bools, ints, arrays, objects
+                try:
+                    parsed_val: Any = json.loads(raw_val)
+                except (json.JSONDecodeError, ValueError):
+                    parsed_val = raw_val
+                plugin_manager.set_plugin_config(d.name, key, parsed_val)
+                log_success(f"[+] Set {key} = {parsed_val!r}")
         else:
             log_error("Invalid selection.")
     except ValueError:
@@ -329,6 +339,8 @@ def uninstall_plugin_ui(plugin_manager: Optional[PluginManager]) -> None:
             if Confirm.ask(f"[bold red]Permanently delete {pname}?[/bold red]"):
                 if plugin_manager.uninstall_plugin(pname):
                     log_success(f"[-] Uninstalled: {pname}")
+                    # Re-resolve remaining plugins so state stays consistent
+                    plugin_manager.refresh()
                 else:
                     log_error(f"Failed to uninstall {pname}")
         else:

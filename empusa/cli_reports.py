@@ -31,11 +31,28 @@ from empusa.cli_common import (
     log_error,
     log_info,
     log_success,
+    render_screen,
+    render_group_heading,
     sanitize_filename,
 )
 
 if TYPE_CHECKING:
     from empusa.registry import CapabilityRegistry
+
+
+# ── Public API aliases (used by non-interactive CLI subcommands) ────
+
+
+def gather_env_host_data(env_path: Path) -> List[Dict[str, Any]]:
+    """Public wrapper for ``_gather_env_host_data``."""
+    return _gather_env_host_data(env_path)
+
+
+def build_host_md(
+    host: Dict[str, Any], section: int, idx: int, category: str,
+) -> List[str]:
+    """Public wrapper for ``_build_host_md``."""
+    return _build_host_md(host, section, idx, category)
 
 
 # ── Data gathering ─────────────────────────────────────────────────
@@ -84,7 +101,7 @@ def _gather_env_host_data(env_path: Path) -> List[Dict[str, Any]]:
         for loot_entry in all_loot:
             loot_host = loot_entry.get("host", "")
             for host in hosts:
-                if loot_host and (loot_host == host["ip"] or loot_host in host["ip"]):
+                if loot_host and loot_host == host["ip"]:
                     host["loot"].append(loot_entry)
                     break
 
@@ -241,7 +258,7 @@ def report_builder(
     ask_env_fn: Optional[Callable[..., str]] = None,
 ) -> None:
     """Interactive penetration test report builder with auto-population from environment data."""
-    log_info("\n== Penetration Test Report Builder ==", "bold cyan")
+    render_screen("Penetration Test Report Builder", "Auto-populated from environment host/loot data.")
 
     if ask_env_fn is not None:
         env_name = ask_env_fn()
@@ -265,7 +282,7 @@ def report_builder(
     else:
         log_info("No host data found. Report will use placeholders.", "yellow")
 
-    log_info("\n[bold yellow]Report Metadata[/bold yellow]")
+    render_group_heading("Report Metadata", "bold yellow")
     assessment_name = Prompt.ask("Assessment name", default="Internal Penetration Test")
     tester_name = Prompt.ask("Tester name")
     client_name = Prompt.ask("Client/Organization name", default="Client")
@@ -277,7 +294,7 @@ def report_builder(
     ad_set: List[Dict[str, Any]] = []
 
     if hosts:
-        log_info("\n[bold yellow]Categorize Hosts[/bold yellow]")
+        render_group_heading("Categorize Hosts", "bold yellow")
         log_info("Mark each as [s]tandalone target or [a]ctive Directory set.")
         for h in hosts:
             cat = Prompt.ask(f"  {h['ip']} ({h['os']})", choices=["s", "a"], default="s")

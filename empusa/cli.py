@@ -23,8 +23,10 @@ from empusa.cli_common import (
     CONFIG, SESSION_ACTIONS, console,
     IS_WINDOWS, IS_UNIX,
     HOOKS_DIR, PLUGINS_DIR,
-    log_action, clear_screen,
+    log_action, clear_screen, pause,
+    render_screen, render_kv, render_group_heading,
     log_verbose, log_info, log_error, log_success,
+    set_console, load_loot,
 )
 from empusa.cli_plugins import (
     list_plugins_render,
@@ -35,7 +37,7 @@ from empusa.cli_plugins import (
 )
 from empusa.cli_hooks import (
     init_hook_dirs, run_hooks as _run_hooks, set_event_bus,
-    list_hooks_render,
+    list_hooks_render, manager_overview_render,
     create_hook_ui, open_hooks_dir,
     test_fire_hook, delete_hook_ui,
 )
@@ -65,20 +67,18 @@ services: Optional[Services] = None
 
 
 def manage_hooks() -> None:
-    """Interactive hook and plugin manager (panel controller).
+    """Interactive plugin & hook manager (panel controller).
 
-    Renders a persistent section with a replaceable content area.
-    Actions update the content buffer instead of printing directly,
-    so output persists until the next action is chosen.
+    Mirrors the module workshop pattern:
+    render_screen → render_kv → one Rich table → flat menu → Prompt.
     """
-    # Default content: hooks overview
-    content: Any = list_hooks_render()
+    # Default content: overview table
+    content: Any = manager_overview_render(plugin_manager, registry)
 
     while True:
-        clear_screen()
-        log_info("\n== Plugin & Hook Manager ==", "bold cyan")
-        log_info(f"Hooks dir:   [dim]{HOOKS_DIR}[/dim]")
-        log_info(f"Plugins dir: [dim]{PLUGINS_DIR}[/dim]")
+        render_screen("Plugin & Hook Manager")
+        render_kv("Hooks dir", f"[dim]{HOOKS_DIR}[/dim]")
+        render_kv("Plugins dir", f"[dim]{PLUGINS_DIR}[/dim]")
         console.print("")
 
         # -- Content area --
@@ -86,22 +86,19 @@ def manage_hooks() -> None:
             console.print(content)
             console.print("")
 
-        log_info("[bold]Manager Menu:[/]")
-        log_info("[bold cyan]-- Hooks (Layer 2) --[/bold cyan]")
-        log_info("1. List Installed Hooks")
-        log_info("2. Create Example Hook")
-        log_info("3. Open Hooks Directory")
-        log_info("4. Test Fire a Hook Event")
-        log_info("5. Delete a Hook Script")
-        log_info("[bold magenta]-- Plugins (Layer 3) --[/bold magenta]")
-        log_info("6. List / Status Plugins")
-        log_info("7. Create New Plugin")
+        log_info("[bold]Plugin & Hook Manager Menu:[/]")
+        log_info("1. View Hooks")
+        log_info("2. Create Hook")
+        log_info("3. Test Hook Event")
+        log_info("4. Delete Hook")
+        log_info("5. Open Hooks Folder")
+        log_info("6. View Plugins")
+        log_info("7. Create Plugin")
         log_info("8. Enable / Disable Plugin")
         log_info("9. Plugin Info & Config")
         log_info("10. Uninstall Plugin")
-        log_info("[bold yellow]-- Framework --[/bold yellow]")
-        log_info("11. Capability Registry")
-        log_info("12. Open Plugins Directory")
+        log_info("11. Open Plugins Folder")
+        log_info("12. View Capability Registry")
         log_info("0. Back to Main Menu")
 
         valid = [str(i) for i in range(13)]
@@ -115,14 +112,14 @@ def manage_hooks() -> None:
             create_hook_ui()
             content = list_hooks_render()
         elif choice == '3':
-            open_hooks_dir()
-            content = "[green]✔[/green] Opened hooks directory"
-        elif choice == '4':
             test_fire_hook()
             content = list_hooks_render()
-        elif choice == '5':
+        elif choice == '4':
             delete_hook_ui()
             content = list_hooks_render()
+        elif choice == '5':
+            open_hooks_dir()
+            content = "[green]✔[/green] Opened hooks folder"
         elif choice == '6':
             content = list_plugins_render(plugin_manager)
         elif choice == '7':
@@ -138,10 +135,10 @@ def manage_hooks() -> None:
             uninstall_plugin_ui(plugin_manager)
             content = list_plugins_render(plugin_manager)
         elif choice == '11':
-            content = show_registry_render(registry)
-        elif choice == '12':
             open_plugins_dir()
-            content = "[green]✔[/green] Opened plugins directory"
+            content = "[green]✔[/green] Opened plugins folder"
+        elif choice == '12':
+            content = show_registry_render(registry)
 
 
 
@@ -179,7 +176,7 @@ def print_banner() -> None:
 [green]  Inspired by Empusa - vampire, demon, and sorceress of stealth[/green]
 [yellow]  https://github.com/Icarus4122/empusa  |  v{version}[/yellow]
 """
-    from empusa import __version__ as version
+    from empusa import __version__ as version  # lightweight: __init__.py is metadata-only
     banner = banner.replace("{version}", version)
     console.print(Panel.fit(banner, border_style="red"))
 
@@ -330,8 +327,12 @@ def _shutdown() -> None:
     # 1. Kill lingering child processes
     killed = _kill_child_processes()
 
-    # 2. Remove shell history hooks
-    cleaned = _cleanup_shell_history()
+    # 2. Remove shell history hooks (only if explicitly enabled)
+    cleaned: List[str] = []
+    if CONFIG.get('enable_shell_hooks', False):
+        cleaned = _cleanup_shell_history()
+    else:
+        log_verbose("Shell hook cleanup skipped (enable with --enable-shell-hooks)", "dim")
 
     # 3. Fire on_shutdown hooks
     _run_hooks("on_shutdown", {
@@ -445,21 +446,23 @@ def _show_environments(envs: List[str]) -> None:
 
 
 def summarize_command() -> None:
-    """Display the main menu options."""
-    log_info("==== Environment Automation Tool ====", "bold blue")
-    log_info("1. Build New Environment")
-    log_info("2. Build Reverse Tunnel")
-    log_info("3. Generate Hashcat Rules")
-    log_info("4. Search Exploits from Nmap Results")
-    log_info("5. Loot Tracker")
-    log_info("6. Report Builder")
-    log_info("7. Select / Switch Environment")
-    log_info("8. Manage Hooks / Plugins")
-    log_info("9. Module Workshop")
-    log_info("10. Privesc Enumeration Generator")
-    log_info("11. Hash Identifier + Crack Builder")
-    log_info("12. AD Enumeration Playbook")
-    log_info("0. Exit")
+    """Display the main menu options grouped by category."""
+    render_group_heading("Operations", "bold blue")
+    log_info("  1. Build New Environment")
+    log_info("  2. Build Reverse Tunnel")
+    log_info("  3. Generate Hashcat Rules")
+    log_info("  4. Search Exploits from Nmap Results")
+    render_group_heading("Analysis & Tracking", "bold green")
+    log_info("  5. Loot Tracker")
+    log_info("  6. Report Builder")
+    log_info("  10. Privesc Enumeration Generator")
+    log_info("  11. Hash Identifier + Crack Builder")
+    log_info("  12. AD Enumeration Playbook")
+    render_group_heading("Framework", "bold yellow")
+    log_info("  7. Select / Switch Environment")
+    log_info("  8. Manage Hooks / Plugins")
+    log_info("  9. Module Workshop")
+    log_info("  0. Exit")
 
 
 def _ask_env(prompt_text: str = "Enter environment name") -> str:
@@ -498,24 +501,23 @@ def _select_environment(envs: List[str]) -> None:
 
 def main_menu() -> None:
     """Run the interactive main menu loop."""
-    print_banner()
     log_action("Session Start", f"Empusa launched")
 
     # On first launch, detect environments and offer selection
     envs = _detect_environments()
     if envs and not CONFIG['session_env']:
+        print_banner()
         log_info(f"Detected {len(envs)} existing environment(s):\n", "green")
         _select_environment(envs)
         if CONFIG['session_env']:
             log_action("Select Environment", CONFIG['session_env'])
-        clear_screen()
-        print_banner()
 
     content: Any = None  # content buffer for action summaries
 
     while True:
         # Clear the previous iteration's output, then show fresh context
         clear_screen()
+        print_banner()
         envs = _detect_environments()
         if envs:
             _show_environments(envs)
@@ -543,17 +545,17 @@ def main_menu() -> None:
             if env_abs.exists():
                 # Re-detect so the fresh environment appears in the table
                 envs = _detect_environments()
-                clear_screen()
+                render_screen(f"Post-Build — {env_name}")
                 if envs:
                     _show_environments(envs)
                 summarize_hosts(env_name)
-                log_info("\n[bold]What would you like to do next?[/]")
-                log_info("1. Search Exploits from Nmap Results")
-                log_info("2. Build Reverse Tunnel")
-                log_info("3. Generate Hashcat Rules")
-                log_info("4. Open Loot Tracker")
-                log_info("5. Build Report")
-                log_info("0. Back to Main Menu")
+                render_group_heading("Next Steps", "bold green")
+                log_info("  1. Search Exploits from Nmap Results")
+                log_info("  2. Build Reverse Tunnel")
+                log_info("  3. Generate Hashcat Rules")
+                log_info("  4. Open Loot Tracker")
+                log_info("  5. Build Report")
+                log_info("  0. Back to Main Menu")
                 nxt = Prompt.ask("Select", choices=['0', '1', '2', '3', '4', '5'], default='0')
                 if nxt == '1':
                     log_action("Exploit Search", f"Post-build → {env_name}")
@@ -562,14 +564,17 @@ def main_menu() -> None:
                             nmap_f = sub / "nmap" / "full_scan.txt"
                             if nmap_f.exists():
                                 search_exploits_from_nmap(nmap_f, services=services)
+                    pause()
                     content = "[green]✔[/green] Exploit search complete"
                 elif nxt == '2':
                     log_action("Reverse Tunnel", "Post-build")
                     build_reverse_tunnel()
+                    pause()
                     content = "[green]✔[/green] Reverse tunnel configured"
                 elif nxt == '3':
                     log_action("Hashcat Rules", "Post-build")
                     generate_hashcat_rules()
+                    pause()
                     content = "[green]✔[/green] Hashcat rules generated"
                 elif nxt == '4':
                     log_action("Loot Tracker", "Post-build")
@@ -577,15 +582,19 @@ def main_menu() -> None:
                 elif nxt == '5':
                     log_action("Report Builder", "Post-build")
                     report_builder(registry=registry, run_hooks_fn=_run_hooks, ask_env_fn=_ask_env)
+            else:
+                pause()
         elif choice == '2':
             log_action("Reverse Tunnel", "Builder")
             clear_screen()
             build_reverse_tunnel()
+            pause()
 
         elif choice == '3':
             log_action("Hashcat Rules", "Generator")
             clear_screen()
             generate_hashcat_rules()
+            pause()
 
         elif choice == '4':
             env_name = _ask_env()
@@ -594,6 +603,7 @@ def main_menu() -> None:
             clear_screen()
             nmap_path = Path(env_name) / ip_target / "nmap" / "full_scan.txt"
             search_exploits_from_nmap(nmap_path, services=services)
+            pause()
 
         elif choice == '5':
             log_action("Loot Tracker", CONFIG.get('session_env', ''))
@@ -602,10 +612,17 @@ def main_menu() -> None:
             log_action("Report Builder", CONFIG.get('session_env', ''))
             report_builder(registry=registry, run_hooks_fn=_run_hooks, ask_env_fn=_ask_env)
         elif choice == '7':
-            _select_environment(envs)
-            if CONFIG['session_env']:
-                log_action("Switch Environment", CONFIG['session_env'])
-                content = f"[green]✔[/green] Active environment: {CONFIG['session_env']}"
+            if not envs:
+                content = "[yellow]No environments detected. Build one first.[/yellow]"
+            else:
+                _select_environment(envs)
+                if CONFIG['session_env']:
+                    log_action("Switch Environment", CONFIG['session_env'])
+                content = (
+                    f"[green]✔[/green] Active environment: {CONFIG['session_env']}"
+                    if CONFIG['session_env']
+                    else "[yellow]Active environment cleared.[/yellow]"
+                )
         elif choice == '8':
             log_action("Manage Hooks", "Plugin manager")
             manage_hooks()
@@ -616,16 +633,19 @@ def main_menu() -> None:
             log_action("Privesc Enum", CONFIG.get('session_env', ''))
             clear_screen()
             privesc_enum_generator()
+            pause()
 
         elif choice == '11':
             log_action("Hash Crack Builder", CONFIG.get('session_env', ''))
             clear_screen()
             hash_crack_builder()
+            pause()
 
         elif choice == '12':
             log_action("AD Playbook", CONFIG.get('session_env', ''))
             clear_screen()
             ad_enum_playbook()
+            pause()
 
         elif choice == '0':
             _shutdown()
@@ -634,78 +654,23 @@ def main_menu() -> None:
             log_error("Invalid choice. Try again.")
 
 
-def main() -> None:
-    """Main entry point for the Empusa CLI."""
-    from empusa import __version__
-    
-    parser = argparse.ArgumentParser(
-        prog="empusa", 
-        description="Empusa - Shape-shifting Recon & Exploitation Automation Framework",
-        epilog="Use responsibly and only with explicit authorization."
-    )
-    parser.add_argument(
-        "--version", 
-        action="version", 
-        version=f"%(prog)s {__version__}"
-    )
-    parser.add_argument(
-        "-v", "--verbose",
-        action="store_true",
-        help="Enable verbose output (detailed logging)"
-    )
-    parser.add_argument(
-        "-q", "--quiet",
-        action="store_true",
-        help="Suppress non-essential output"
-    )
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Show what would be done without executing"
-    )
-    parser.add_argument(
-        "--no-color",
-        action="store_true",
-        help="Disable colored output"
-    )
-    parser.add_argument(
-        "-w", "--workers",
-        type=int,
-        default=8,
-        metavar="N",
-        help="Maximum number of concurrent scan workers (default: 8)"
-    )
-    
-    args = parser.parse_args()
-    
-    # Update global configuration
-    CONFIG['verbose'] = args.verbose
-    CONFIG['quiet'] = args.quiet
-    CONFIG['dry_run'] = args.dry_run
-    CONFIG['no_color'] = args.no_color
-    CONFIG['max_workers'] = max(1, args.workers)
-    
-    # Configure console based on settings
-    global console
-    if args.no_color:
-        console = Console(no_color=True, force_terminal=False)
-    
-    if args.verbose and args.quiet:
-        log_error("Cannot use --verbose and --quiet together")
-        return
-    
-    if args.dry_run:
-        log_info("[DRY RUN MODE] No changes will be made", "bold yellow")
-    
-    # Register cleanup handlers
-    atexit.register(_shutdown)
-    signal.signal(signal.SIGINT, _handle_sigint)
+def init_framework() -> None:
+    """Initialize hook system, event bus, services, and plugin manager.
+
+    Must be called after CONFIG is populated from CLI args. Sets the
+    module-level ``event_bus``, ``plugin_manager``, and ``services``
+    globals.
+
+    .. note:: Also accessible as ``_init_framework`` for backward compat.
+    """
+    global event_bus, plugin_manager, services
+
+    # Re-propagate console in case set_console() was called before all
+    # modules were loaded (belt-and-suspenders for --no-color).
+    set_console(console)
 
     # Initialize hook system (Layer 2 - legacy hooks)
     init_hook_dirs()
-
-    # Initialize plugin framework (Layers 1-5)
-    global event_bus, plugin_manager, services
 
     # Layer 5 - Runtime services
     _logger_svc = LoggerService(console, verbose=CONFIG['verbose'], quiet=CONFIG['quiet'])
@@ -770,9 +735,258 @@ def main() -> None:
     if activated and CONFIG['verbose']:
         log_verbose(f"[Plugin] {activated} plugin(s) activated", "green")
 
-    # Fire startup event through the bus
+
+_init_framework = init_framework  # backward-compat alias
+
+
+# -- Non-interactive subcommand handlers -----------------------------
+
+
+def _cmd_build(args: argparse.Namespace) -> int:
+    """Non-interactive build: ``empusa build --env NAME --ips IP,...``."""
+    CONFIG['session_env'] = args.env
+    ips = [ip.strip() for ip in args.ips.split(',') if ip.strip()]
+    if not ips:
+        log_error("No IPs provided.")
+        return 1
+    _init_framework()
     _run_hooks("on_startup")
+    log_action("Build Environment", f"{args.env} → {', '.join(ips)}")
+    build_env(args.env, ips, run_hooks_fn=_run_hooks)
+    _shutdown()
+    return 0
+
+
+def _cmd_exploit_search(args: argparse.Namespace) -> int:
+    """Non-interactive exploit search."""
+    CONFIG['session_env'] = args.env
+    _init_framework()
+    _run_hooks("on_startup")
+    nmap_path = Path(args.env) / args.host / "nmap" / "full_scan.txt"
+    if not nmap_path.exists():
+        log_error(f"Nmap results not found: {nmap_path}")
+        _shutdown()
+        return 1
+    log_action("Exploit Search", f"{args.env}/{args.host}")
+    search_exploits_from_nmap(nmap_path, services=services)
+    _shutdown()
+    return 0
+
+
+def _cmd_loot(args: argparse.Namespace) -> int:
+    """Non-interactive loot operations."""
+    CONFIG['session_env'] = args.env
+    _init_framework()
+    _run_hooks("on_startup")
+
+    if args.loot_action == "list":
+        loot_file = Path(args.env) / "loot.json"
+        entries = load_loot(loot_file)
+        if not entries:
+            log_info("No loot entries found.", "yellow")
+        for entry in entries:
+            console.print(entry)
+    elif args.loot_action == "add":
+        assert services is not None, "Services not initialized"
+        new_entry: Dict[str, Any] = {
+            "host": args.loot_host or "",
+            "cred_type": args.cred_type or "password",
+            "username": args.username or "",
+            "secret": args.secret or "",
+            "source": args.source or "",
+        }
+        services.loot.append(new_entry)
+        log_success(f"[+] Loot added: {new_entry}")
+        _run_hooks("on_loot_add", {
+            **new_entry,
+            "env_name": args.env,
+            "env_path": str(Path(args.env).absolute()),
+        })
+    else:
+        log_error(f"Unknown loot action: {args.loot_action}")
+        _shutdown()
+        return 1
+
+    _shutdown()
+    return 0
+
+
+def _cmd_report(args: argparse.Namespace) -> int:
+    """Non-interactive report generation."""
+    CONFIG['session_env'] = args.env
+    _init_framework()
+    _run_hooks("on_startup")
+    log_action("Report Builder", args.env)
+    from empusa.cli_reports import gather_env_host_data, build_host_md
+
+    env_path = Path(args.env).absolute()
+    if not env_path.exists():
+        log_error(f"Environment not found: {env_path}")
+        _shutdown()
+        return 1
+
+    assessment = args.assessment or args.env
+    hosts = gather_env_host_data(env_path)
+    if not hosts:
+        log_info("No hosts found in environment.", "yellow")
+
+    # Build a minimal report
+    lines: List[str] = [f"# {assessment} - Penetration Test Report", ""]
+    lines.append(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+    for i, host in enumerate(hosts, 1):
+        lines.extend(build_host_md(host, 3, i, "Target"))
+    report_path = env_path / f"{assessment.replace(' ', '_')}_report.md"
+    report_path.write_text("\n".join(lines), encoding="utf-8")
+    log_success(f"[+] Report written: {report_path}")
+
+    _run_hooks("on_report_generated", {
+        "report_path": str(report_path),
+        "env_name": args.env,
+    })
+    _shutdown()
+    return 0
+
+
+def _cmd_plugins_refresh(args: argparse.Namespace) -> int:
+    """Non-interactive plugin refresh."""
+    _init_framework()
+    assert plugin_manager is not None
+    warnings = plugin_manager.refresh()
+    for w in warnings:
+        log_info(f"  ⚠ {w}", "yellow")
+    log_success(
+        f"[+] Plugins refreshed: {plugin_manager.active_count()} active / "
+        f"{plugin_manager.plugin_count()} total"
+    )
+    _shutdown()
+    return 0
+
+
+def main() -> None:
+    """Main entry point for the Empusa CLI."""
+    from empusa import __version__
     
+    parser = argparse.ArgumentParser(
+        prog="empusa", 
+        description="Empusa - Shape-shifting Recon & Exploitation Automation Framework",
+        epilog="Use responsibly and only with explicit authorization."
+    )
+    parser.add_argument(
+        "--version", 
+        action="version", 
+        version=f"%(prog)s {__version__}"
+    )
+    parser.add_argument(
+        "-v", "--verbose",
+        action="store_true",
+        help="Enable verbose output (detailed logging)"
+    )
+    parser.add_argument(
+        "-q", "--quiet",
+        action="store_true",
+        help="Suppress non-essential output"
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would be done without executing"
+    )
+    parser.add_argument(
+        "--no-color",
+        action="store_true",
+        help="Disable colored output"
+    )
+    parser.add_argument(
+        "-w", "--workers",
+        type=int,
+        default=8,
+        metavar="N",
+        help="Maximum number of concurrent scan workers (default: 8)"
+    )
+    parser.add_argument(
+        "--enable-shell-hooks",
+        action="store_true",
+        help="Allow Empusa to install/remove shell history logging hooks on exit (default: off)"
+    )
+
+    # -- Non-interactive subcommands ---------------------------------
+    subparsers = parser.add_subparsers(dest="command", help="Non-interactive subcommands")
+
+    # empusa build --env NAME --ips IP,IP,...
+    sp_build = subparsers.add_parser("build", help="Build environment (non-interactive)")
+    sp_build.add_argument("--env", required=True, help="Environment name")
+    sp_build.add_argument("--ips", required=True, help="Comma-separated target IPs")
+
+    # empusa exploit-search --env NAME --host FOLDER
+    sp_exploit = subparsers.add_parser("exploit-search", help="Search exploits from nmap results")
+    sp_exploit.add_argument("--env", required=True, help="Environment name")
+    sp_exploit.add_argument("--host", required=True, help="Host folder (e.g. 10.10.10.10-Linux)")
+
+    # empusa loot --env NAME list|add [--host H --cred-type T --username U --secret S --source SRC]
+    sp_loot = subparsers.add_parser("loot", help="Loot operations (non-interactive)")
+    sp_loot.add_argument("--env", required=True, help="Environment name")
+    sp_loot.add_argument("loot_action", choices=["list", "add"], help="Loot action")
+    sp_loot.add_argument("--host", dest="loot_host", default="", help="Host IP (for add)")
+    sp_loot.add_argument("--cred-type", default="password", help="Credential type (for add)")
+    sp_loot.add_argument("--username", default="", help="Username (for add)")
+    sp_loot.add_argument("--secret", default="", help="Secret / password / hash (for add)")
+    sp_loot.add_argument("--source", default="", help="Source description (for add)")
+
+    # empusa report --env NAME [--assessment TITLE]
+    sp_report = subparsers.add_parser("report", help="Generate report (non-interactive)")
+    sp_report.add_argument("--env", required=True, help="Environment name")
+    sp_report.add_argument("--assessment", default="", help="Assessment / report title")
+
+    # empusa plugins refresh
+    sp_plugins = subparsers.add_parser("plugins", help="Plugin management (non-interactive)")
+    sp_plugins_sub = sp_plugins.add_subparsers(dest="plugins_action")
+    sp_plugins_sub.add_parser("refresh", help="Refresh plugin lifecycle")
+
+    args = parser.parse_args()
+    
+    # Update global configuration
+    CONFIG['verbose'] = args.verbose
+    CONFIG['quiet'] = args.quiet
+    CONFIG['dry_run'] = args.dry_run
+    CONFIG['no_color'] = args.no_color
+    CONFIG['max_workers'] = max(1, args.workers)
+    CONFIG['enable_shell_hooks'] = args.enable_shell_hooks
+    
+    # Configure console based on settings
+    if args.no_color:
+        _no_color_console = Console(no_color=True, force_terminal=False)
+        set_console(_no_color_console)  # propagates to all submodules
+    
+    if args.verbose and args.quiet:
+        log_error("Cannot use --verbose and --quiet together")
+        raise SystemExit(1)
+    
+    if args.dry_run:
+        log_info("[DRY RUN MODE] No changes will be made", "bold yellow")
+
+    # Register cleanup handlers
+    atexit.register(_shutdown)
+    signal.signal(signal.SIGINT, _handle_sigint)
+
+    # -- Dispatch subcommand or fall through to interactive menu ------
+    if args.command == "build":
+        raise SystemExit(_cmd_build(args))
+    elif args.command == "exploit-search":
+        raise SystemExit(_cmd_exploit_search(args))
+    elif args.command == "loot":
+        raise SystemExit(_cmd_loot(args))
+    elif args.command == "report":
+        raise SystemExit(_cmd_report(args))
+    elif args.command == "plugins":
+        if getattr(args, "plugins_action", None) == "refresh":
+            raise SystemExit(_cmd_plugins_refresh(args))
+        else:
+            parser.parse_args(["plugins", "--help"])
+            return
+
+    # -- No subcommand: interactive mode -----------------------------
+    _init_framework()
+    _run_hooks("on_startup")
     main_menu()
 
 if __name__ == '__main__':

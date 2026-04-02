@@ -1,0 +1,51 @@
+# Auto-detect text files and normalise line endings
+* text=auto
+
+# Python
+*.py text diff=python
+*.pyi text diff=python
+
+# Shell
+*.sh text eol=lf
+
+# Markdown / docs
+*.md text diff=markdown
+*.txt text
+LICENSE text
+
+# Data files
+*.json text
+*.toml text
+*.yml text
+*.yaml text
+*.cfg text
+*.ini text
+
+# C / C++ / C# sources
+*.c text diff=c
+*.cpp text diff=cpp
+*.h text diff=c
+*.cs text diff=csharp
+
+# Go
+*.go text diff=golang
+
+# Rust
+*.rs text diff=rust
+
+# Perl
+*.pl text
+
+# Build
+Makefile text
+makefile text
+Dockerfile text
+
+# Binary — do not diff
+*.exe binary
+*.dll binary
+*.so binary
+*.dylib binary
+*.png binary
+*.jpg binary
+*.ico binary

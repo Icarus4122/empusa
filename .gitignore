@@ -213,5 +213,11 @@ __marimo__/
 *.suo
 .vs/
 
+# Rust build artifacts (cargo)
+**/target/
+
+# Build markers (empusa module workshop)
+.build_ok
+
 # Visual Studio solution file (not needed for Python users)
 *.sln

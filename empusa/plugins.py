@@ -436,6 +436,32 @@ class PluginManager:
         if self._registry:
             self._registry.unregister_plugin(desc.name)
 
+    # -- Safe refresh ------------------------------------------------
+
+    def refresh(self) -> List[str]:
+        """Full lifecycle refresh: deactivate → discover → resolve → activate.
+
+        This is the **safe** way to re-sync in-memory plugin state after
+        any on-disk change (create, uninstall, manifest edit, config
+        change).  UI code should call this instead of bare ``discover()``.
+
+        Returns dependency-resolution warnings (same as
+        ``resolve_dependencies()``).
+        """
+        self.deactivate_all()
+        self.discover()
+        warnings = self.resolve_dependencies()
+        self.activate_all()
+        return warnings
+
+    def reload_plugin(self, name: str) -> List[str]:
+        """Reload a single plugin by name (full lifecycle refresh).
+
+        Convenience wrapper that still performs a full refresh because
+        dependency graphs may have changed.  Returns warnings.
+        """
+        return self.refresh()
+
     # -- Event dispatch (called by bus) ------------------------------
 
     def dispatch_event(self, event_name: str, event: EmpusaEvent) -> List[Dict[str, Any]]:

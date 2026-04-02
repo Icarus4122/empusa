@@ -58,8 +58,8 @@ class ShutdownEvent(EmpusaEvent):
     """Fired during graceful shutdown."""
 
     event: str = "on_shutdown"
-    killed_pids: List[int] = field(default_factory=lambda: cast(List[int], []))
-    cleaned_hooks: int = 0
+    killed_pids: List[str] = field(default_factory=lambda: cast(List[str], []))
+    cleaned_hooks: List[str] = field(default_factory=lambda: cast(List[str], []))
 
 
 # -- Environment ----------------------------------------------------

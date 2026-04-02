@@ -37,8 +37,15 @@ Thanks for your interest in Empusa! Here is how you can help.
    | `empusa/registry.py` | Capability registry |
    | `empusa/events.py` | Event name constants |
 
-5. Run Pylance or mypy to verify zero type errors.
-6. Submit a pull request with a clear description.
+5. Run the test suite:
+
+   ```bash
+   pip install pytest
+   python -m pytest
+   ```
+
+6. Run Pylance or mypy to verify zero type errors.
+7. Submit a pull request with a clear description.
 
 ## Code Style
 
@@ -65,11 +72,17 @@ Empusa 2.0 ships with a hook system. To contribute a hook:
 |-------|-----------|--------------|
 | `on_startup` | Empusa launches | `timestamp`, `session_env` |
 | `on_shutdown` | Clean exit / Ctrl+C | `killed_pids`, `cleaned_hooks` |
+| `pre_build` | Before env build starts | `env_name`, `ips` |
 | `post_build` | After env build | `env_name`, `env_path`, `ips` |
+| `pre_scan_host` | Before a host scan | `ip`, `env_name` |
 | `post_scan` | After host scan | `ip`, `scan_output`, `os_type` |
 | `on_loot_add` | After loot saved | `host`, `username`, `secret`, `cred_type` |
+| `pre_report_write` | Before report written | `env_name`, `env_path` |
 | `on_report_generated` | After report | `report_path`, `env_name` |
 | `on_env_select` | Env selected | `env_name` |
+| `pre_command` | Before subprocess | `command`, `args`, `working_dir` |
+| `post_command` | After subprocess | `command`, `return_code`, `stdout` |
+| `post_compile` | After module compiled | `module_name`, `language`, `output_path` |
 
 ### Hook Template
 

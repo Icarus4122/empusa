@@ -1,0 +1,76 @@
+name: Bug Report
+description: Report a bug in Empusa
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug.
+
+  - type: input
+    id: version
+    attributes:
+      label: Empusa version
+      description: Output of `empusa --version`
+      placeholder: "2.2.0"
+    validations:
+      required: true
+
+  - type: input
+    id: python-version
+    attributes:
+      label: Python version
+      description: Output of `python --version`
+      placeholder: "3.12.0"
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: "Kali Linux 2025.1 / Windows 11 / macOS 15"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install-method
+    attributes:
+      label: Installation method
+      options:
+        - pipx
+        - pip
+        - pip install -e .
+        - Docker
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug description
+      description: What happened and what did you expect?
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Minimal steps to trigger the bug.
+      placeholder: |
+        1. Run `empusa`
+        2. Select option …
+        3. …
+    validations:
+      required: true
+
+  - type: textarea
+    id: traceback
+    attributes:
+      label: Traceback or error output
+      description: Paste the full traceback if available.
+      render: text
+    validations:
+      required: false

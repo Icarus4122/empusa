@@ -37,10 +37,152 @@ from empusa.cli_common import (
     log_info,
     log_success,
     log_verbose,
+    render_group_heading,
 )
 
 if TYPE_CHECKING:
     from empusa.bus import EventBus
+    from empusa.plugins import PluginManager
+    from empusa.registry import CapabilityRegistry
+
+
+# -- Compact summary helpers (for dashboard) -------------------------
+
+
+def hooks_summary() -> Dict[str, Any]:
+    """Return a compact summary of hook installation state.
+
+    Returns a dict with:
+        configured_events  – number of events that have ≥ 1 script
+        total_events       – total event count (len(HOOK_EVENTS))
+        total_scripts      – total script count across all events
+        configured         – list of (event, [script_names]) for non-empty events
+        empty_count        – number of events with zero scripts
+    """
+    hooks = list_hooks()
+    configured: List[Tuple[str, List[str]]] = []
+    total_scripts = 0
+    for evt in HOOK_EVENTS:
+        scripts = hooks.get(evt, [])
+        total_scripts += len(scripts)
+        if scripts:
+            configured.append((evt, scripts))
+    return {
+        "configured_events": len(configured),
+        "total_events": len(HOOK_EVENTS),
+        "total_scripts": total_scripts,
+        "configured": configured,
+        "empty_count": len(HOOK_EVENTS) - len(configured),
+    }
+
+
+def hooks_coverage_render() -> str:
+    """Return a compact Rich-markup string showing hook coverage.
+
+    Only configured events are listed by name; empty events are
+    collapsed into a single dim count line.
+    """
+    info = hooks_summary()
+    lines: List[str] = []
+
+    if not info["configured"]:
+        lines.append("[dim]No hooks configured.[/dim]")
+    else:
+        for evt, scripts in info["configured"]:
+            scripts_str = ", ".join(scripts)
+            lines.append(f"  [green]✔[/green] [bold]{evt}[/bold]   [dim]{scripts_str}[/dim]")
+
+    if info["empty_count"]:
+        lines.append(f"  [dim]… {info['empty_count']} empty event(s) hidden[/dim]")
+
+    return "\n".join(lines)
+
+
+def manager_overview_render(
+    pm: Optional[PluginManager] = None,
+    reg: Optional[CapabilityRegistry] = None,
+) -> Table:
+    """Return the Plugin & Hook Manager overview as a single Rich Table.
+
+    Combines status counters and hook coverage into one table that
+    mirrors the module workshop pattern (table → caption → flat menu).
+    """
+    h = hooks_summary()
+    total_plugins = pm.plugin_count() if pm else 0
+    active_plugins = pm.active_count() if pm else 0
+    enabled_plugins = (
+        sum(1 for d in pm.plugins.values() if d.enabled) if pm else 0
+    )
+    cap_total = sum(reg.summary().values()) if reg else 0
+
+    table = Table(
+        title="Plugin & Hook Manager",
+        show_lines=True,
+        border_style="cyan",
+        title_style="bold cyan",
+        min_width=52,
+    )
+    table.add_column("Item", style="bold white", min_width=18)
+    table.add_column("Status", style="green", overflow="fold")
+
+    # -- Status rows --
+    hook_status = (
+        f"{h['configured_events']} / {h['total_events']} events"
+        f"  [dim]({h['total_scripts']} script{'s' if h['total_scripts'] != 1 else ''})[/dim]"
+    )
+    table.add_row("Hooks configured", hook_status)
+
+    if total_plugins == 0:
+        table.add_row("Plugins", "[dim]none installed[/dim]")
+    else:
+        table.add_row(
+            "Plugins enabled",
+            f"{enabled_plugins} / {total_plugins}  [dim]({active_plugins} active)[/dim]",
+        )
+
+    table.add_row(
+        "Capabilities",
+        f"{cap_total} provider{'s' if cap_total != 1 else ''}" if cap_total else "[dim]none[/dim]",
+    )
+
+    # -- Hook coverage rows (configured only, empties collapsed) --
+    table.add_row("", "")  # spacer
+    if h["configured"]:
+        for evt, scripts in h["configured"]:
+            scripts_str = ", ".join(scripts)
+            table.add_row(
+                f"[green]✔[/green] {evt}",
+                f"[dim]{scripts_str}[/dim]",
+            )
+    else:
+        table.add_row("[dim]Hook events[/dim]", "[dim]no scripts installed[/dim]")
+
+    if h["empty_count"]:
+        table.add_row(
+            f"[dim]… {h['empty_count']} empty[/dim]",
+            "[dim]events hidden[/dim]",
+        )
+
+    # -- Warnings --
+    warnings: List[str] = []
+    if h["configured_events"] == 0:
+        warnings.append("no hooks installed")
+    if total_plugins > 0 and active_plugins == 0:
+        warnings.append("no plugins active")
+    if warnings:
+        table.add_row(
+            "[yellow]⚠ Warning[/yellow]",
+            "[yellow]" + "; ".join(warnings) + "[/yellow]",
+        )
+
+    # -- Caption --
+    table.caption = (
+        f"{h['total_scripts']} hook script(s)  ·  "
+        f"{total_plugins} plugin(s)  ·  "
+        f"{cap_total} capability/ies"
+    )
+    table.caption_style = "cyan"
+    return table
 
 
 # -- Bus reference (set by cli.main after initialization) -----------
@@ -52,6 +194,16 @@ def set_event_bus(bus: EventBus) -> None:
     """Set the event bus reference for hook dispatch."""
     global _event_bus
     _event_bus = bus
+
+
+def get_event_bus() -> Optional[EventBus]:
+    """Return the current event bus reference (may be ``None``)."""
+    return _event_bus
+
+
+def fire_legacy_hooks_fallback(event: str, context: Optional[Dict[str, Any]] = None) -> None:
+    """Public wrapper for the legacy hook execution fallback."""
+    _fire_legacy_hooks_fallback(event, context)
 
 
 # -- Hook lifecycle --------------------------------------------------
@@ -198,13 +350,14 @@ def create_example_hook(event: str) -> Path:
     example_path.write_text(
         f'"""\nEmpusa Hook - {event}\n\n'
         f'This script runs automatically when the \'{event}\' event fires.\n'
-        f'Edit the run() function below to add your custom logic.\n"""\n\n\n'
+        f'Edit the run() function below to add your custom logic.\n"""\n\n'
+        f'from empusa.cli_common import log_info\n\n\n'
         f'def run(context: dict) -> None:\n'
         f'{hint}\n'
         f'\n'
-        f'    print(f"[Hook][{event}] fired at {{context[\'timestamp\']}}"\n'
-        f'          f" | env: {{context.get(\'session_env\', \'N/A\')}}"\n'
-        f'          )\n'
+        f'    log_info(f"[Hook][{event}] fired at {{context[\'timestamp\']}}"\n'
+        f'            f" | env: {{context.get(\'session_env\', \'N/A\')}}"\n'
+        f'            )\n'
         f'\n'
         f'    # --- Add your logic below ---\n'
         f'    # Example: send a notification, write to a log, trigger a script, etc.\n'
@@ -277,7 +430,7 @@ def list_hooks_ui() -> None:
 
 def create_hook_ui() -> None:
     """Interactive hook creation wizard."""
-    log_info("\n[bold yellow]Create Example Hook[/bold yellow]")
+    render_group_heading("Create Example Hook", "bold yellow")
     log_info("Available events:")
     for i, evt in enumerate(HOOK_EVENTS, 1):
         log_info(f"  {i}. {evt}")
@@ -311,7 +464,7 @@ def open_hooks_dir() -> None:
 
 def test_fire_hook() -> None:
     """Interactively test-fire a hook event with synthetic context."""
-    log_info("\n[bold yellow]Test Fire Hook Event[/bold yellow]")
+    render_group_heading("Test Fire Hook Event", "bold yellow")
     log_info("Available events:")
     for i, evt in enumerate(HOOK_EVENTS, 1):
         scripts = list_hooks().get(evt, [])
@@ -353,7 +506,7 @@ def delete_hook_ui() -> None:
         log_info("No hook scripts to delete.", "yellow")
         return
 
-    log_info("\n[bold yellow]Delete Hook Script[/bold yellow]")
+    render_group_heading("Delete Hook Script", "bold yellow")
     for i, (evt, s) in enumerate(all_scripts, 1):
         log_info(f"  {i}. {evt}/{s}")
 

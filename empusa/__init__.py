@@ -9,6 +9,4 @@ __version__ = "2.2.0"
 __author__ = "Amos Parker"
 __license__ = "GPL-3.0-or-later"
 
-from empusa.cli import main
-
-__all__ = ["main", "__version__", "__app_name__"]
+__all__ = ["__version__", "__app_name__", "__author__", "__license__"]
