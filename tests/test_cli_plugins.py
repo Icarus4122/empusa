@@ -139,3 +139,85 @@ class TestUninstallRefresh:
 
         uninstall_plugin_ui(pm)
         pm.refresh.assert_called_once()
+
+
+# -- show_registry_render ---------------------------------------------
+
+
+class TestShowRegistryRender:
+    def test_none_registry(self) -> None:
+        from empusa.cli_plugins import show_registry_render
+
+        result = show_registry_render(None)
+        assert "not available" in str(result).lower()
+
+    def test_empty_registry(self) -> None:
+        from empusa.cli_plugins import show_registry_render
+
+        reg = MagicMock()
+        reg.summary.return_value = {}
+        result = show_registry_render(reg)
+        assert "empty" in str(result).lower()
+
+    def test_with_entries(self) -> None:
+        from empusa.cli_plugins import show_registry_render
+
+        entry = MagicMock()
+        entry.name = "nmap_scanner"
+
+        rep1 = MagicMock()
+        rep1.name = "rep1"
+        rep2 = MagicMock()
+        rep2.name = "rep2"
+
+        reg = MagicMock()
+        reg.summary.return_value = {"scanner": 1, "reporter": 2}
+        reg.get.side_effect = lambda cat: [entry] if cat == "scanner" else [rep1, rep2]
+
+        table = show_registry_render(reg)
+        assert hasattr(table, "columns")
+        assert table.caption is not None
+        assert "3" in table.caption
+
+
+# -- list_plugins_render status branches ------------------------------
+
+
+class TestListPluginsRenderStatuses:
+    def _make_desc(self, *, activated: bool, activatable: bool, enabled: bool) -> MagicMock:
+        desc = MagicMock()
+        desc.name = "test"
+        desc.version = "1.0"
+        desc.activated = activated
+        desc.activatable = activatable
+        desc.enabled = enabled
+        desc.events = []
+        desc.description = "test"
+        return desc
+
+    def test_active_status(self) -> None:
+        pm = MagicMock()
+        desc = self._make_desc(activated=True, activatable=True, enabled=True)
+        pm.plugins = {"p": desc}
+        pm.active_count.return_value = 1
+        pm.plugin_count.return_value = 1
+        result = list_plugins_render(pm)
+        assert result is not None
+
+    def test_blocked_status(self) -> None:
+        pm = MagicMock()
+        desc = self._make_desc(activated=False, activatable=False, enabled=True)
+        pm.plugins = {"p": desc}
+        pm.active_count.return_value = 0
+        pm.plugin_count.return_value = 1
+        result = list_plugins_render(pm)
+        assert result is not None
+
+    def test_disabled_status(self) -> None:
+        pm = MagicMock()
+        desc = self._make_desc(activated=False, activatable=True, enabled=False)
+        pm.plugins = {"p": desc}
+        pm.active_count.return_value = 0
+        pm.plugin_count.return_value = 1
+        result = list_plugins_render(pm)
+        assert result is not None

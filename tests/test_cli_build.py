@@ -14,6 +14,7 @@ import pytest
 from empusa.cli_build import (
     HASH_SIGNATURES,
     detect_os,
+    find_password_files,
     identify_hash,
     validate_hostname,
     validate_ip,
@@ -184,3 +185,38 @@ class TestHashSignatures:
             assert isinstance(mode, int)
             assert isinstance(name, str)
             assert isinstance(pattern, str)
+
+    def test_regex_patterns_compile(self) -> None:
+        import re
+
+        for _, _, pattern in HASH_SIGNATURES:
+            re.compile(pattern)  # should not raise
+
+
+# -- find_password_files -----------------------------------------------
+
+
+class TestFindPasswordFiles:
+    def test_finds_matching_file(self, tmp_path: Path) -> None:
+        pw_file = tmp_path / "corp-passwords.txt"
+        pw_file.write_text("secret1\nsecret2\n")
+        matches = find_password_files("corp", tmp_path)
+        assert len(matches) == 1
+        assert matches[0].name == "corp-passwords.txt"
+
+    def test_finds_nested_file(self, tmp_path: Path) -> None:
+        sub = tmp_path / "host1"
+        sub.mkdir()
+        (sub / "lab-passwords.txt").write_text("pass\n")
+        matches = find_password_files("lab", tmp_path)
+        assert len(matches) == 1
+
+    def test_no_match(self, tmp_path: Path) -> None:
+        (tmp_path / "other-file.txt").write_text("nope")
+        matches = find_password_files("corp", tmp_path)
+        assert matches == []
+
+    def test_default_search_path(self) -> None:
+        # Should not crash when called without explicit path
+        result = find_password_files("empusa_nonexistent_domain_xyz")
+        assert result == []

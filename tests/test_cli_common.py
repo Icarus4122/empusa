@@ -192,3 +192,164 @@ class TestPlatformFlags:
     def test_flags_are_bool(self) -> None:
         assert isinstance(IS_WINDOWS, bool)
         assert isinstance(IS_UNIX, bool)
+
+
+# -- get_console -----------------------------------------------------
+
+
+class TestGetConsole:
+    def test_returns_console_instance(self) -> None:
+        from empusa.cli_common import get_console
+
+        result = get_console()
+        assert isinstance(result, Console)
+
+    def test_matches_module_global(self) -> None:
+        from empusa.cli_common import get_console
+
+        assert get_console() is cli_common.console
+
+
+# -- render_kv / render_group_heading --------------------------------
+
+
+class TestRenderKv:
+    def test_no_crash_normal(self) -> None:
+        buf = Console(record=True, quiet=False, force_terminal=False)
+        original = cli_common.console
+        set_console(buf)
+        try:
+            cli_common.render_kv("Key", "Value")
+            output = buf.export_text()
+            assert "Key" in output
+            assert "Value" in output
+        finally:
+            set_console(original)
+
+    def test_suppressed_when_quiet(self) -> None:
+        buf = Console(record=True, quiet=False, force_terminal=False)
+        original = cli_common.console
+        set_console(buf)
+        saved = CONFIG["quiet"]
+        CONFIG["quiet"] = True
+        try:
+            cli_common.render_kv("Hidden", "Secret")
+            output = buf.export_text()
+            assert "Hidden" not in output
+        finally:
+            CONFIG["quiet"] = saved
+            set_console(original)
+
+
+class TestRenderGroupHeading:
+    def test_no_crash(self) -> None:
+        buf = Console(record=True, quiet=False, force_terminal=False)
+        original = cli_common.console
+        set_console(buf)
+        try:
+            cli_common.render_group_heading("Test Heading")
+            output = buf.export_text()
+            assert "Test Heading" in output
+        finally:
+            set_console(original)
+
+
+# -- log_verbose / log_success --------------------------------------
+
+
+class TestLogVerbose:
+    def test_prints_when_verbose(self) -> None:
+        buf = Console(record=True, quiet=False, force_terminal=False)
+        original = cli_common.console
+        set_console(buf)
+        saved_v = CONFIG["verbose"]
+        saved_q = CONFIG["quiet"]
+        CONFIG["verbose"] = True
+        CONFIG["quiet"] = False
+        try:
+            cli_common.log_verbose("verbose msg")
+            output = buf.export_text()
+            assert "verbose msg" in output
+        finally:
+            CONFIG["verbose"] = saved_v
+            CONFIG["quiet"] = saved_q
+            set_console(original)
+
+    def test_suppressed_when_not_verbose(self) -> None:
+        buf = Console(record=True, quiet=False, force_terminal=False)
+        original = cli_common.console
+        set_console(buf)
+        saved_v = CONFIG["verbose"]
+        CONFIG["verbose"] = False
+        try:
+            cli_common.log_verbose("hidden")
+            output = buf.export_text()
+            assert "hidden" not in output
+        finally:
+            CONFIG["verbose"] = saved_v
+            set_console(original)
+
+
+class TestLogSuccess:
+    def test_prints_when_not_quiet(self) -> None:
+        buf = Console(record=True, quiet=False, force_terminal=False)
+        original = cli_common.console
+        set_console(buf)
+        saved = CONFIG["quiet"]
+        CONFIG["quiet"] = False
+        try:
+            cli_common.log_success("done!")
+            output = buf.export_text()
+            assert "done!" in output
+        finally:
+            CONFIG["quiet"] = saved
+            set_console(original)
+
+
+# -- print_mini_banner / print_section_header ------------------------
+
+
+class TestPrintMiniBanner:
+    def test_no_crash(self) -> None:
+        buf = Console(record=True, quiet=False, force_terminal=False)
+        original = cli_common.console
+        set_console(buf)
+        saved = CONFIG["quiet"]
+        CONFIG["quiet"] = False
+        try:
+            cli_common.print_mini_banner()
+            output = buf.export_text()
+            assert "Empusa" in output
+        finally:
+            CONFIG["quiet"] = saved
+            set_console(original)
+
+    def test_quiet_suppresses(self) -> None:
+        buf = Console(record=True, quiet=False, force_terminal=False)
+        original = cli_common.console
+        set_console(buf)
+        saved = CONFIG["quiet"]
+        CONFIG["quiet"] = True
+        try:
+            cli_common.print_mini_banner()
+            output = buf.export_text()
+            assert "Empusa" not in output
+        finally:
+            CONFIG["quiet"] = saved
+            set_console(original)
+
+
+class TestPrintSectionHeader:
+    def test_prints_title(self) -> None:
+        buf = Console(record=True, quiet=False, force_terminal=False)
+        original = cli_common.console
+        set_console(buf)
+        saved = CONFIG["quiet"]
+        CONFIG["quiet"] = False
+        try:
+            cli_common.print_section_header("My Section")
+            output = buf.export_text()
+            assert "My Section" in output
+        finally:
+            CONFIG["quiet"] = saved
+            set_console(original)

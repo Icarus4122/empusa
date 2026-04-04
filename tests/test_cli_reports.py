@@ -123,3 +123,80 @@ class TestPublicWrappers:
 
     def test_build_is_callable(self) -> None:
         assert callable(build_host_md)
+
+
+# -- build_host_md with loot data ------------------------------------
+
+
+class TestBuildHostMdWithLoot:
+    def test_flags_rendered(self) -> None:
+        host: dict[str, Any] = {
+            "ip": "10.10.10.5",
+            "os": "Linux",
+            "ports": [],
+            "loot": [
+                {
+                    "cred_type": "flag",
+                    "secret": "FLAG{abc123}",
+                    "source": "user.txt",
+                },
+            ],
+        }
+        lines = build_host_md(host, section=3, idx=1, category="Standalone")
+        text = "\n".join(lines)
+        assert "FLAG{abc123}" in text
+        assert "user.txt" in text
+
+    def test_creds_table_rendered(self) -> None:
+        host: dict[str, Any] = {
+            "ip": "10.10.10.6",
+            "os": "Windows",
+            "ports": [],
+            "loot": [
+                {
+                    "cred_type": "plaintext",
+                    "username": "admin",
+                    "secret": "P@ssw0rd",
+                    "source": "mimikatz",
+                },
+                {
+                    "cred_type": "ntlm",
+                    "username": "svc_sql",
+                    "secret": "aabbccdd",
+                    "source": "secretsdump",
+                },
+            ],
+        }
+        lines = build_host_md(host, section=3, idx=1, category="AD")
+        text = "\n".join(lines)
+        assert "Credentials Obtained" in text
+        assert "admin" in text
+        assert "svc_sql" in text
+        assert "| Type |" in text
+
+    def test_flags_and_creds_together(self) -> None:
+        host: dict[str, Any] = {
+            "ip": "10.10.10.7",
+            "os": "Linux",
+            "ports": [{"port": "22", "proto": "tcp", "service": "ssh", "version": "OpenSSH 8.9"}],
+            "loot": [
+                {"cred_type": "flag", "secret": "FLAG{root}", "source": "root.txt"},
+                {"cred_type": "plaintext", "username": "root", "secret": "toor", "source": "shadow"},
+            ],
+        }
+        lines = build_host_md(host, section=3, idx=1, category="Standalone")
+        text = "\n".join(lines)
+        assert "FLAG{root}" in text
+        assert "Credentials Obtained" in text
+        assert "root" in text
+
+    def test_no_loot_shows_placeholder(self) -> None:
+        host: dict[str, Any] = {
+            "ip": "10.10.10.8",
+            "os": "Windows",
+            "ports": [],
+            "loot": [],
+        }
+        lines = build_host_md(host, section=3, idx=1, category="Standalone")
+        text = "\n".join(lines)
+        assert "post-exploitation" in text.lower()

@@ -2,7 +2,9 @@
 Tests for empusa.cli_hooks
 
 Covers: init_hook_dirs, list_hooks, create_example_hook,
-        _fire_legacy_hooks_fallback, set_event_bus.
+        _fire_legacy_hooks_fallback, set_event_bus,
+        hooks_summary, hooks_coverage_render, list_hooks_render,
+        manager_overview_render, run_hooks.
 """
 
 from __future__ import annotations
@@ -127,3 +129,212 @@ class TestSetEventBus:
         assert get_event_bus() is fake
         # Cleanup
         set_event_bus(None)  # type: ignore[arg-type]
+
+
+# -- hooks_summary ----------------------------------------------------
+
+
+class TestHooksSummary:
+    def test_empty_hooks(self, tmp_path: Path) -> None:
+        from empusa.cli_hooks import HOOK_EVENTS, hooks_summary
+
+        hooks_dir = tmp_path / "hooks"
+        for evt in HOOK_EVENTS:
+            (hooks_dir / evt).mkdir(parents=True)
+
+        with patch("empusa.cli_hooks.HOOKS_DIR", hooks_dir):
+            info = hooks_summary()
+
+        assert info["configured_events"] == 0
+        assert info["total_scripts"] == 0
+        assert info["empty_count"] == info["total_events"]
+
+    def test_with_scripts(self, tmp_path: Path) -> None:
+        from empusa.cli_hooks import HOOK_EVENTS, hooks_summary
+
+        hooks_dir = tmp_path / "hooks"
+        for evt in HOOK_EVENTS:
+            (hooks_dir / evt).mkdir(parents=True)
+        (hooks_dir / "on_startup" / "hello.py").touch()
+        (hooks_dir / "post_scan" / "notify.py").touch()
+
+        with patch("empusa.cli_hooks.HOOKS_DIR", hooks_dir):
+            info = hooks_summary()
+
+        assert info["configured_events"] == 2
+        assert info["total_scripts"] == 2
+        assert len(info["configured"]) == 2
+        assert info["empty_count"] == info["total_events"] - 2
+
+    def test_summary_keys(self, tmp_path: Path) -> None:
+        from empusa.cli_hooks import HOOK_EVENTS, hooks_summary
+
+        hooks_dir = tmp_path / "hooks"
+        for evt in HOOK_EVENTS:
+            (hooks_dir / evt).mkdir(parents=True)
+
+        with patch("empusa.cli_hooks.HOOKS_DIR", hooks_dir):
+            info = hooks_summary()
+
+        for key in ("configured_events", "total_events", "total_scripts", "configured", "empty_count"):
+            assert key in info
+
+
+# -- hooks_coverage_render --------------------------------------------
+
+
+class TestHooksCoverageRender:
+    def test_no_hooks(self, tmp_path: Path) -> None:
+        from empusa.cli_hooks import HOOK_EVENTS, hooks_coverage_render
+
+        hooks_dir = tmp_path / "hooks"
+        for evt in HOOK_EVENTS:
+            (hooks_dir / evt).mkdir(parents=True)
+
+        with patch("empusa.cli_hooks.HOOKS_DIR", hooks_dir):
+            result = hooks_coverage_render()
+
+        assert "No hooks configured" in result
+
+    def test_with_hooks(self, tmp_path: Path) -> None:
+        from empusa.cli_hooks import HOOK_EVENTS, hooks_coverage_render
+
+        hooks_dir = tmp_path / "hooks"
+        for evt in HOOK_EVENTS:
+            (hooks_dir / evt).mkdir(parents=True)
+        (hooks_dir / "on_startup" / "hook.py").touch()
+
+        with patch("empusa.cli_hooks.HOOKS_DIR", hooks_dir):
+            result = hooks_coverage_render()
+
+        assert "on_startup" in result
+        assert "hook.py" in result
+        assert "empty event(s) hidden" in result
+
+
+# -- list_hooks_render ------------------------------------------------
+
+
+class TestListHooksRender:
+    def test_returns_table(self, tmp_path: Path) -> None:
+        from rich.table import Table
+
+        from empusa.cli_hooks import HOOK_EVENTS, list_hooks_render
+
+        hooks_dir = tmp_path / "hooks"
+        for evt in HOOK_EVENTS:
+            (hooks_dir / evt).mkdir(parents=True)
+
+        with patch("empusa.cli_hooks.HOOKS_DIR", hooks_dir):
+            table = list_hooks_render()
+
+        assert isinstance(table, Table)
+
+    def test_shows_scripts(self, tmp_path: Path) -> None:
+        from empusa.cli_hooks import HOOK_EVENTS, list_hooks_render
+
+        hooks_dir = tmp_path / "hooks"
+        for evt in HOOK_EVENTS:
+            (hooks_dir / evt).mkdir(parents=True)
+        (hooks_dir / "on_startup" / "myhook.py").touch()
+
+        with patch("empusa.cli_hooks.HOOKS_DIR", hooks_dir):
+            table = list_hooks_render()
+
+        assert table.caption is not None
+        assert "1 hook script" in table.caption
+
+
+# -- manager_overview_render ------------------------------------------
+
+
+class TestManagerOverviewRender:
+    def test_no_plugins_no_hooks(self, tmp_path: Path) -> None:
+        from rich.table import Table
+
+        from empusa.cli_hooks import HOOK_EVENTS, manager_overview_render
+
+        hooks_dir = tmp_path / "hooks"
+        for evt in HOOK_EVENTS:
+            (hooks_dir / evt).mkdir(parents=True)
+
+        with patch("empusa.cli_hooks.HOOKS_DIR", hooks_dir):
+            table = manager_overview_render(pm=None, reg=None)
+
+        assert isinstance(table, Table)
+
+    def test_with_plugin_manager(self, tmp_path: Path) -> None:
+        from empusa.cli_hooks import HOOK_EVENTS, manager_overview_render
+
+        hooks_dir = tmp_path / "hooks"
+        for evt in HOOK_EVENTS:
+            (hooks_dir / evt).mkdir(parents=True)
+
+        pm = MagicMock()
+        pm.plugin_count.return_value = 3
+        pm.active_count.return_value = 2
+        desc1 = MagicMock()
+        desc1.enabled = True
+        desc2 = MagicMock()
+        desc2.enabled = True
+        desc3 = MagicMock()
+        desc3.enabled = False
+        pm.plugins = {"a": desc1, "b": desc2, "c": desc3}
+
+        with patch("empusa.cli_hooks.HOOKS_DIR", hooks_dir):
+            table = manager_overview_render(pm=pm, reg=None)
+
+        assert "3" in table.caption
+
+    def test_with_registry(self, tmp_path: Path) -> None:
+        from empusa.cli_hooks import HOOK_EVENTS, manager_overview_render
+
+        hooks_dir = tmp_path / "hooks"
+        for evt in HOOK_EVENTS:
+            (hooks_dir / evt).mkdir(parents=True)
+
+        reg = MagicMock()
+        reg.summary.return_value = {"scanner": 2, "reporter": 1}
+
+        with patch("empusa.cli_hooks.HOOKS_DIR", hooks_dir):
+            table = manager_overview_render(pm=None, reg=reg)
+
+        assert table.row_count > 0
+
+    def test_warnings_when_no_hooks(self, tmp_path: Path) -> None:
+        from empusa.cli_hooks import HOOK_EVENTS, manager_overview_render
+
+        hooks_dir = tmp_path / "hooks"
+        for evt in HOOK_EVENTS:
+            (hooks_dir / evt).mkdir(parents=True)
+
+        with patch("empusa.cli_hooks.HOOKS_DIR", hooks_dir):
+            table = manager_overview_render(pm=None, reg=None)
+
+        assert table.row_count > 0
+
+
+# -- run_hooks --------------------------------------------------------
+
+
+class TestRunHooks:
+    def test_with_event_bus(self) -> None:
+        from empusa.cli_hooks import run_hooks, set_event_bus
+
+        mock_bus = MagicMock()
+        set_event_bus(mock_bus)
+        try:
+            run_hooks("on_startup", {"test": True})
+            mock_bus.emit_legacy.assert_called_once_with("on_startup", {"test": True})
+        finally:
+            set_event_bus(None)  # type: ignore[arg-type]
+
+    def test_fallback_without_bus(self, tmp_path: Path) -> None:
+        from empusa.cli_hooks import run_hooks, set_event_bus
+
+        set_event_bus(None)  # type: ignore[arg-type]
+        hooks_dir = tmp_path / "hooks"
+        (hooks_dir / "on_startup").mkdir(parents=True)
+
+        with patch("empusa.cli_hooks.HOOKS_DIR", hooks_dir):
+            run_hooks("on_startup", {"event": "on_startup"})  # should not crash

@@ -8,6 +8,7 @@ Covers: argparse subcommand parsing, --no-color / --verbose / --quiet flags,
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 # -- argparse structure ------------------------------------------------
@@ -212,3 +213,122 @@ class TestVerboseQuietExclusion:
         p = TestArgparseStructure.build_parser()
         args = p.parse_args(["--verbose", "--quiet"])
         assert args.verbose is True and args.quiet is True
+
+
+# -- _build_execution_flow -------------------------------------------
+
+
+class TestBuildExecutionFlow:
+    def test_empty_actions(self) -> None:
+        from empusa.cli import _build_execution_flow
+        from empusa.cli_common import SESSION_ACTIONS
+
+        saved = SESSION_ACTIONS.copy()
+        SESSION_ACTIONS.clear()
+        try:
+            result = _build_execution_flow()
+            assert result == ""
+        finally:
+            SESSION_ACTIONS.clear()
+            SESSION_ACTIONS.extend(saved)
+
+    def test_single_action(self) -> None:
+        from empusa.cli import _build_execution_flow
+        from empusa.cli_common import SESSION_ACTIONS
+
+        saved = SESSION_ACTIONS.copy()
+        SESSION_ACTIONS.clear()
+        SESSION_ACTIONS.append({"time": "10:00:00", "action": "Build", "detail": "env=lab"})
+        try:
+            result = _build_execution_flow()
+            assert "Session Execution Flow" in result
+            assert "Build" in result
+            assert "env=lab" in result
+        finally:
+            SESSION_ACTIONS.clear()
+            SESSION_ACTIONS.extend(saved)
+
+    def test_multiple_actions(self) -> None:
+        from empusa.cli import _build_execution_flow
+        from empusa.cli_common import SESSION_ACTIONS
+
+        saved = SESSION_ACTIONS.copy()
+        SESSION_ACTIONS.clear()
+        SESSION_ACTIONS.extend(
+            [
+                {"time": "10:00:00", "action": "Startup", "detail": ""},
+                {"time": "10:01:00", "action": "Scan", "detail": "10.10.10.1"},
+                {"time": "10:02:00", "action": "Shutdown", "detail": ""},
+            ]
+        )
+        try:
+            result = _build_execution_flow()
+            assert "┌" in result  # first
+            assert "├" in result  # middle
+            assert "└" in result  # last
+            assert "Scan" in result
+        finally:
+            SESSION_ACTIONS.clear()
+            SESSION_ACTIONS.extend(saved)
+
+
+# -- _cleanup_shell_history -------------------------------------------
+
+
+class TestCleanupShellHistory:
+    def test_cleans_rc_file(self, tmp_path: Path) -> None:
+        from empusa.cli import _cleanup_shell_history
+
+        rc = tmp_path / ".bashrc"
+        rc.write_text(
+            "# normal line\n"
+            "alias ll='ls -la'\n"
+            "# Empusa Command Logging\n"
+            "export PROMPT_COMMAND='history -a'\n"
+            "shopt -s histappend\n"
+            "\n"
+            "# after empusa block\n"
+            "export PATH=$PATH:/usr/local/bin\n"
+        )
+        # .zshrc must not exist so only .bashrc is processed
+        with (
+            patch("empusa.cli.IS_UNIX", True),
+            patch("empusa.cli.IS_WINDOWS", False),
+            patch("empusa.cli.Path") as mock_path_cls,
+            patch("empusa.cli.log_verbose"),
+        ):
+            mock_path_cls.home.return_value = tmp_path
+            result = _cleanup_shell_history()
+
+        assert len(result) == 1
+        assert str(rc) in result[0]
+        content = rc.read_text()
+        assert "Empusa Command Logging" not in content
+        assert "alias ll='ls -la'" in content
+        assert "export PATH=$PATH:/usr/local/bin" in content
+
+    def test_no_marker_leaves_file_unchanged(self, tmp_path: Path) -> None:
+        from empusa.cli import _cleanup_shell_history
+
+        rc = tmp_path / ".bashrc"
+        original = "# normal line\nalias ll='ls -la'\n"
+        rc.write_text(original)
+
+        with (
+            patch("empusa.cli.IS_UNIX", True),
+            patch("empusa.cli.IS_WINDOWS", False),
+            patch("empusa.cli.Path") as mock_path_cls,
+        ):
+            mock_path_cls.home.return_value = tmp_path
+            result = _cleanup_shell_history()
+
+        assert result == []
+        assert rc.read_text() == original
+
+    def test_empty_target_on_unknown_platform(self) -> None:
+        from empusa.cli import _cleanup_shell_history
+
+        with patch("empusa.cli.IS_UNIX", False), patch("empusa.cli.IS_WINDOWS", False):
+            result = _cleanup_shell_history()
+
+        assert result == []

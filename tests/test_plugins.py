@@ -336,3 +336,193 @@ class TestScopedServicesMultiplePerms:
         scoped.loot.append({"host": "10.10.10.1"})
         scoped.artifact.write("out.txt", "data")
         scoped.runner.run(["echo", "ok"])  # dry_run
+
+
+# -- PluginDescriptor __repr__ ---------------------------------------
+
+
+class TestPluginDescriptorRepr:
+    """Cover all four __repr__ status branches."""
+
+    def test_active_status(self, plugins_dir: Path, make_services) -> None:
+        svc = make_services(plugins_dir.parent)
+        write_plugin(plugins_dir, "repr_active", permissions=["loot_read"])
+        pm = PluginManager(plugins_dir, services=svc)
+        pm.discover()
+        pm.resolve_dependencies()
+        pm.activate_all()
+        desc = pm.plugins["repr_active"]
+        assert "[active]" in repr(desc)
+
+    def test_blocked_status(self, plugins_dir: Path) -> None:
+        write_plugin(plugins_dir, "repr_blocked", permissions=["teleport"])
+        pm = PluginManager(plugins_dir)
+        pm.discover()
+        desc = pm.plugins["repr_blocked"]
+        assert "[blocked]" in repr(desc)
+
+    def test_enabled_status(self, plugins_dir: Path) -> None:
+        write_plugin(plugins_dir, "repr_enabled")
+        pm = PluginManager(plugins_dir)
+        pm.discover()
+        desc = pm.plugins["repr_enabled"]
+        # Not activated, activatable=True, enabled=True
+        assert "[enabled]" in repr(desc)
+
+    def test_disabled_status(self, plugins_dir: Path) -> None:
+        write_plugin(plugins_dir, "repr_disabled", enabled=False)
+        pm = PluginManager(plugins_dir)
+        pm.discover()
+        desc = pm.plugins["repr_disabled"]
+        assert "[disabled]" in repr(desc)
+
+
+# -- init_dirs -------------------------------------------------------
+
+
+class TestInitDirs:
+    def test_creates_plugins_dir_and_readme(self, tmp_path: Path) -> None:
+        new_dir = tmp_path / "new_plugins"
+        pm = PluginManager(new_dir)
+        pm.init_dirs()
+        assert new_dir.is_dir()
+        readme = new_dir / "README.md"
+        assert readme.exists()
+        assert "Empusa Plugins" in readme.read_text()
+
+    def test_idempotent(self, tmp_path: Path) -> None:
+        new_dir = tmp_path / "new_plugins"
+        pm = PluginManager(new_dir)
+        pm.init_dirs()
+        pm.init_dirs()  # second call should not fail
+        assert new_dir.is_dir()
+
+
+# -- create_plugin_scaffold ------------------------------------------
+
+
+class TestCreatePluginScaffold:
+    def test_creates_files(self, plugins_dir: Path) -> None:
+        pm = PluginManager(plugins_dir)
+        plugin_dir = pm.create_plugin_scaffold(
+            "my_plugin",
+            description="Test plugin",
+            events=["on_startup"],
+            permissions=["loot_read"],
+            author="tester",
+        )
+        assert (plugin_dir / "manifest.json").exists()
+        assert (plugin_dir / "config.json").exists()
+        assert (plugin_dir / "plugin.py").exists()
+
+    def test_manifest_content(self, plugins_dir: Path) -> None:
+        pm = PluginManager(plugins_dir)
+        plugin_dir = pm.create_plugin_scaffold("scaffold_test", events=["post_scan"])
+        manifest = json.loads((plugin_dir / "manifest.json").read_text())
+        assert manifest["name"] == "scaffold_test"
+        assert "post_scan" in manifest["events"]
+        assert manifest["enabled"] is True
+
+    def test_plugin_py_content(self, plugins_dir: Path) -> None:
+        pm = PluginManager(plugins_dir)
+        plugin_dir = pm.create_plugin_scaffold("code_test")
+        code = (plugin_dir / "plugin.py").read_text()
+        assert "def activate" in code
+        assert "def deactivate" in code
+
+
+# -- get_plugin_config / set_plugin_config ---------------------------
+
+
+class TestPluginConfig:
+    def test_get_empty_config(self, plugins_dir: Path) -> None:
+        write_plugin(plugins_dir, "cfg_test")
+        pm = PluginManager(plugins_dir)
+        pm.discover()
+        config = pm.get_plugin_config("cfg_test")
+        assert isinstance(config, dict)
+
+    def test_get_nonexistent_returns_empty(self, plugins_dir: Path) -> None:
+        pm = PluginManager(plugins_dir)
+        assert pm.get_plugin_config("nonexistent") == {}
+
+    def test_set_and_get(self, plugins_dir: Path) -> None:
+        write_plugin(plugins_dir, "cfg_rw")
+        # Write a config.json so it gets loaded during discover
+        (plugins_dir / "cfg_rw" / "config.json").write_text('{"initial": true}')
+        pm = PluginManager(plugins_dir)
+        pm.discover()
+        assert pm.set_plugin_config("cfg_rw", "my_key", 42) is True
+        config = pm.get_plugin_config("cfg_rw")
+        assert config["my_key"] == 42
+
+    def test_set_nonexistent_returns_false(self, plugins_dir: Path) -> None:
+        pm = PluginManager(plugins_dir)
+        assert pm.set_plugin_config("ghost", "k", "v") is False
+
+    def test_config_persisted_to_disk(self, plugins_dir: Path) -> None:
+        write_plugin(plugins_dir, "cfg_persist")
+        (plugins_dir / "cfg_persist" / "config.json").write_text("{}")
+        pm = PluginManager(plugins_dir)
+        pm.discover()
+        pm.set_plugin_config("cfg_persist", "saved", "yes")
+        raw = json.loads((plugins_dir / "cfg_persist" / "config.json").read_text())
+        assert raw["saved"] == "yes"
+
+
+# -- uninstall_plugin ------------------------------------------------
+
+
+class TestUninstallPlugin:
+    def test_uninstall_removes_dir(self, plugins_dir: Path, make_services) -> None:
+        svc = make_services(plugins_dir.parent)
+        write_plugin(plugins_dir, "removeme")
+        pm = PluginManager(plugins_dir, services=svc)
+        pm.discover()
+        pm.resolve_dependencies()
+        pm.activate_all()
+        assert pm.uninstall_plugin("removeme") is True
+        assert not (plugins_dir / "removeme").exists()
+        assert "removeme" not in pm.plugins
+
+    def test_uninstall_nonexistent(self, plugins_dir: Path) -> None:
+        pm = PluginManager(plugins_dir)
+        assert pm.uninstall_plugin("nope") is False
+
+    def test_uninstall_inactive(self, plugins_dir: Path) -> None:
+        write_plugin(plugins_dir, "inactive_rm")
+        pm = PluginManager(plugins_dir)
+        pm.discover()
+        assert pm.uninstall_plugin("inactive_rm") is True
+        assert not (plugins_dir / "inactive_rm").exists()
+
+
+# -- dispatch_event --------------------------------------------------
+
+
+class TestDispatchEvent:
+    def test_dispatch_to_handler(self, plugins_dir: Path, make_services) -> None:
+        svc = make_services(plugins_dir.parent)
+        handler_code = (
+            "def activate(s, r, b): pass\n"
+            "def deactivate(): pass\n"
+            "def on_post_scan(event):\n"
+            "    return {'scanned': True}\n"
+        )
+        write_plugin(plugins_dir, "handler_plugin", events=["post_scan"], plugin_py=handler_code)
+        pm = PluginManager(plugins_dir, services=svc)
+        pm.discover()
+        pm.resolve_dependencies()
+        pm.activate_all()
+        results = pm.dispatch_event("post_scan", {"host": "10.10.10.1"})
+        assert any(r.get("scanned") is True for r in results)
+
+    def test_dispatch_no_handler(self, plugins_dir: Path, make_services) -> None:
+        svc = make_services(plugins_dir.parent)
+        write_plugin(plugins_dir, "no_handler", events=["post_scan"])
+        pm = PluginManager(plugins_dir, services=svc)
+        pm.discover()
+        pm.resolve_dependencies()
+        pm.activate_all()
+        results = pm.dispatch_event("post_scan", {})
+        assert results == []
