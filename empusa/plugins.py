@@ -25,13 +25,13 @@ from __future__ import annotations
 import importlib.util
 import json
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, Callable, cast
 
 if TYPE_CHECKING:
     from empusa.bus import EventBus
+    from empusa.events import EmpusaEvent
     from empusa.registry import CapabilityRegistry
     from empusa.services import Services
-    from empusa.events import EmpusaEvent
 
 
 # No-op fallback for optional log callables
@@ -43,7 +43,7 @@ def _noop(*_args: Any, **_kwargs: Any) -> None:
 
 REQUIRED_MANIFEST_FIELDS = ("name", "version", "description", "events")
 
-DEFAULT_MANIFEST: Dict[str, Any] = {
+DEFAULT_MANIFEST: dict[str, Any] = {
     "name": "",
     "version": "0.1.0",
     "author": "",
@@ -54,42 +54,56 @@ DEFAULT_MANIFEST: Dict[str, Any] = {
     "enabled": True,
 }
 
-VALID_PERMISSIONS = frozenset({
-    "network",       # outbound HTTP/socket access
-    "filesystem",    # read/write outside the env dir
-    "subprocess",    # spawn child processes
-    "loot_read",     # read loot entries
-    "loot_write",    # append loot entries
-    "registry",      # register capabilities
-})
+VALID_PERMISSIONS = frozenset(
+    {
+        "network",  # outbound HTTP/socket access
+        "filesystem",  # read/write outside the env dir
+        "subprocess",  # spawn child processes
+        "loot_read",  # read loot entries
+        "loot_write",  # append loot entries
+        "registry",  # register capabilities
+    }
+)
 
 
 # -- Plugin descriptor ----------------------------------------------
+
 
 class PluginDescriptor:
     """In-memory representation of a discovered plugin."""
 
     __slots__ = (
-        "name", "version", "author", "description",
-        "events", "requires", "permissions", "enabled",
-        "path", "manifest_path", "config_path",
-        "config", "module", "activated", "activatable",
+        "name",
+        "version",
+        "author",
+        "description",
+        "events",
+        "requires",
+        "permissions",
+        "enabled",
+        "path",
+        "manifest_path",
+        "config_path",
+        "config",
+        "module",
+        "activated",
+        "activatable",
     )
 
-    def __init__(self, manifest: Dict[str, Any], plugin_dir: Path) -> None:
+    def __init__(self, manifest: dict[str, Any], plugin_dir: Path) -> None:
         self.name: str = manifest.get("name", plugin_dir.name)
         self.version: str = manifest.get("version", "0.1.0")
         self.author: str = manifest.get("author", "")
         self.description: str = manifest.get("description", "")
-        self.events: List[str] = manifest.get("events", [])
-        self.requires: List[str] = manifest.get("requires", [])
-        self.permissions: List[str] = manifest.get("permissions", [])
+        self.events: list[str] = manifest.get("events", [])
+        self.requires: list[str] = manifest.get("requires", [])
+        self.permissions: list[str] = manifest.get("permissions", [])
         self.enabled: bool = manifest.get("enabled", True)
 
         self.path: Path = plugin_dir
         self.manifest_path: Path = plugin_dir / "manifest.json"
         self.config_path: Path = plugin_dir / "config.json"
-        self.config: Dict[str, Any] = {}
+        self.config: dict[str, Any] = {}
         self.module: Any = None
         self.activated: bool = False
         self.activatable: bool = True  # set False by resolve_dependencies / permission check
@@ -108,6 +122,7 @@ class PluginDescriptor:
 
 # -- Plugin Manager --------------------------------------------------
 
+
 class PluginManager:
     """Discovers, loads, and manages the lifecycle of plugins.
 
@@ -122,13 +137,13 @@ class PluginManager:
     def __init__(
         self,
         plugins_dir: Path,
-        services: Optional[Services] = None,
-        registry: Optional[CapabilityRegistry] = None,
-        bus: Optional[EventBus] = None,
-        log_verbose: Optional[Callable[..., None]] = None,
-        log_error: Optional[Callable[..., None]] = None,
-        log_info: Optional[Callable[..., None]] = None,
-        log_success: Optional[Callable[..., None]] = None,
+        services: Services | None = None,
+        registry: CapabilityRegistry | None = None,
+        bus: EventBus | None = None,
+        log_verbose: Callable[..., None] | None = None,
+        log_error: Callable[..., None] | None = None,
+        log_info: Callable[..., None] | None = None,
+        log_success: Callable[..., None] | None = None,
     ) -> None:
         self._dir = plugins_dir
         self._services = services
@@ -139,7 +154,7 @@ class PluginManager:
         self._log_info = log_info or _noop
         self._log_success = log_success or _noop
 
-        self._plugins: Dict[str, PluginDescriptor] = {}
+        self._plugins: dict[str, PluginDescriptor] = {}
 
     # -- Directory init ----------------------------------------------
 
@@ -187,7 +202,7 @@ class PluginManager:
 
     # -- Discovery ---------------------------------------------------
 
-    def discover(self) -> List[PluginDescriptor]:
+    def discover(self) -> list[PluginDescriptor]:
         """Scan the plugins directory for valid plugins.
 
         Returns the list of discovered descriptors (enabled + disabled).
@@ -241,7 +256,7 @@ class PluginManager:
 
     # -- Dependency resolution ---------------------------------------
 
-    def resolve_dependencies(self) -> List[str]:
+    def resolve_dependencies(self) -> list[str]:
         """Validate plugin dependencies and permissions.
 
         - Plugins with missing dependencies are marked non-activatable.
@@ -252,7 +267,7 @@ class PluginManager:
         Returns a list of warning/error strings.
         """
         known_names = set(self._plugins.keys())
-        warnings: List[str] = []
+        warnings: list[str] = []
 
         # 1. Check for missing dependencies
         for desc in self._plugins.values():
@@ -310,10 +325,7 @@ class PluginManager:
                     dep_desc = self._plugins.get(dep_name)
                     if dep_desc is not None and not dep_desc.activatable:
                         desc.activatable = False
-                        msg = (
-                            f"Plugin {desc.name!r} disabled - "
-                            f"dependency {dep_name!r} is non-activatable"
-                        )
+                        msg = f"Plugin {desc.name!r} disabled - dependency {dep_name!r} is non-activatable"
                         warnings.append(msg)
                         self._log_error(msg)
                         changed = True
@@ -321,7 +333,7 @@ class PluginManager:
 
         return warnings
 
-    def _topological_order(self) -> List[PluginDescriptor]:
+    def _topological_order(self) -> list[PluginDescriptor]:
         """Return activatable plugins sorted so dependencies come first.
 
         Uses temp/perm marks so cycles (already caught by
@@ -330,7 +342,7 @@ class PluginManager:
         """
         perm: set[str] = set()
         temp: set[str] = set()
-        order: List[PluginDescriptor] = []
+        order: list[PluginDescriptor] = []
 
         def visit(name: str) -> None:
             if name in perm or name in temp:
@@ -363,8 +375,7 @@ class PluginManager:
                 continue
             if not desc.activatable:
                 self._log_verbose(
-                    f"Plugin {desc.name!r} is non-activatable "
-                    f"(unmet deps, cycle, or bad permissions) - skipping",
+                    f"Plugin {desc.name!r} is non-activatable (unmet deps, cycle, or bad permissions) - skipping",
                     "yellow",
                 )
                 continue
@@ -385,7 +396,8 @@ class PluginManager:
 
         try:
             spec = importlib.util.spec_from_file_location(
-                f"empusa_plugin_{desc.name}", plugin_py,
+                f"empusa_plugin_{desc.name}",
+                plugin_py,
             )
             if spec is None or spec.loader is None:
                 self._log_error(f"Plugin {desc.name}: could not create import spec")
@@ -399,6 +411,7 @@ class PluginManager:
             scoped_svc: Any
             if self._services is not None:
                 from empusa.services import ScopedServices as _ScopedSvc
+
                 scoped_svc = _ScopedSvc(self._services, desc.permissions, desc.name)
             else:
                 scoped_svc = None
@@ -438,8 +451,8 @@ class PluginManager:
 
     # -- Safe refresh ------------------------------------------------
 
-    def refresh(self) -> List[str]:
-        """Full lifecycle refresh: deactivate → discover → resolve → activate.
+    def refresh(self) -> list[str]:
+        """Full lifecycle refresh: deactivate -> discover -> resolve -> activate.
 
         This is the **safe** way to re-sync in-memory plugin state after
         any on-disk change (create, uninstall, manifest edit, config
@@ -454,7 +467,7 @@ class PluginManager:
         self.activate_all()
         return warnings
 
-    def reload_plugin(self, name: str) -> List[str]:
+    def reload_plugin(self, name: str) -> list[str]:
         """Reload a single plugin by name (full lifecycle refresh).
 
         Convenience wrapper that still performs a full refresh because
@@ -464,12 +477,12 @@ class PluginManager:
 
     # -- Event dispatch (called by bus) ------------------------------
 
-    def dispatch_event(self, event_name: str, event: EmpusaEvent) -> List[Dict[str, Any]]:
+    def dispatch_event(self, event_name: str, event: EmpusaEvent) -> list[dict[str, Any]]:
         """Route *event* to every active plugin subscribed to *event_name*.
 
         Returns structured result dicts from plugins that return values.
         """
-        results: List[Dict[str, Any]] = []
+        results: list[dict[str, Any]] = []
         for desc in self._plugins.values():
             if not desc.activated:
                 continue
@@ -492,7 +505,7 @@ class PluginManager:
             try:
                 raw_result = handler(event)
                 if isinstance(raw_result, dict):
-                    typed_result: Dict[str, Any] = cast(Dict[str, Any], raw_result)
+                    typed_result: dict[str, Any] = cast(dict[str, Any], raw_result)
                     typed_result.setdefault("plugin", desc.name)
                     results.append(typed_result)
             except Exception as exc:
@@ -508,10 +521,7 @@ class PluginManager:
         if desc is None:
             return False
         if not desc.activatable:
-            self._log_error(
-                f"Cannot enable {name!r} - non-activatable "
-                f"(unmet deps, cycle, or bad permissions)"
-            )
+            self._log_error(f"Cannot enable {name!r} - non-activatable (unmet deps, cycle, or bad permissions)")
             return False
         desc.enabled = True
         self._update_manifest_field(desc, "enabled", True)
@@ -537,14 +547,15 @@ class PluginManager:
             raw = json.loads(desc.manifest_path.read_text(encoding="utf-8"))
             raw[key] = value
             desc.manifest_path.write_text(
-                json.dumps(raw, indent=2) + "\n", encoding="utf-8",
+                json.dumps(raw, indent=2) + "\n",
+                encoding="utf-8",
             )
         except (json.JSONDecodeError, OSError) as exc:
             self._log_error(f"Could not update manifest for {desc.name}: {exc}")
 
     # -- Config management -------------------------------------------
 
-    def get_plugin_config(self, name: str) -> Dict[str, Any]:
+    def get_plugin_config(self, name: str) -> dict[str, Any]:
         """Return the merged config for plugin *name*."""
         desc = self._plugins.get(name)
         if desc is None:
@@ -559,7 +570,8 @@ class PluginManager:
         desc.config[key] = value
         try:
             desc.config_path.write_text(
-                json.dumps(desc.config, indent=2) + "\n", encoding="utf-8",
+                json.dumps(desc.config, indent=2) + "\n",
+                encoding="utf-8",
             )
             return True
         except OSError as exc:
@@ -572,8 +584,8 @@ class PluginManager:
         self,
         name: str,
         description: str = "",
-        events: Optional[List[str]] = None,
-        permissions: Optional[List[str]] = None,
+        events: list[str] | None = None,
+        permissions: list[str] | None = None,
         author: str = "",
     ) -> Path:
         """Create a new plugin directory with boilerplate files.
@@ -583,7 +595,7 @@ class PluginManager:
         plugin_dir = self._dir / name
         plugin_dir.mkdir(parents=True, exist_ok=True)
 
-        manifest: Dict[str, Any] = {
+        manifest: dict[str, Any] = {
             "name": name,
             "version": "0.1.0",
             "author": author,
@@ -594,34 +606,36 @@ class PluginManager:
             "enabled": True,
         }
         (plugin_dir / "manifest.json").write_text(
-            json.dumps(manifest, indent=2) + "\n", encoding="utf-8",
+            json.dumps(manifest, indent=2) + "\n",
+            encoding="utf-8",
         )
 
         # Default config
         (plugin_dir / "config.json").write_text(
-            json.dumps({"enabled": True}, indent=2) + "\n", encoding="utf-8",
+            json.dumps({"enabled": True}, indent=2) + "\n",
+            encoding="utf-8",
         )
 
         # Plugin module
         events_str = ", ".join(events or [])
         (plugin_dir / "plugin.py").write_text(
             f'"""\nEmpusa Plugin - {name}\n\n'
-            f'{description or "TODO: describe this plugin"}\n'
+            f"{description or 'TODO: describe this plugin'}\n"
             f'Subscribed events: {events_str or "none"}\n"""\n\n'
-            f'from typing import Any, Optional, Dict\n\n\n'
-            f'def activate(services: Any, registry: Any, bus: Any) -> None:\n'
+            f"from typing import Any, Optional, Dict\n\n\n"
+            f"def activate(services: Any, registry: Any, bus: Any) -> None:\n"
             f'    """Called when the plugin is loaded by Empusa."""\n'
             f'    services.logger.info("[Plugin] {name} activated")\n\n\n'
-            f'def deactivate() -> None:\n'
+            f"def deactivate() -> None:\n"
             f'    """Called on shutdown or when the plugin is disabled."""\n'
-            f'    pass\n\n\n'
-            f'def on_event(event: Any) -> Optional[Dict[str, Any]]:\n'
+            f"    pass\n\n\n"
+            f"def on_event(event: Any) -> Optional[Dict[str, Any]]:\n"
             f'    """Handle a subscribed event.\n\n'
-            f'    Return a dict with structured results, or None.\n'
+            f"    Return a dict with structured results, or None.\n"
             f'    """\n'
-            f'    # event is a typed EmpusaEvent dataclass\n'
-            f'    # Access fields like: event.host, event.ip, event.username\n'
-            f'    return None\n',
+            f"    # event is a typed EmpusaEvent dataclass\n"
+            f"    # Access fields like: event.host, event.ip, event.username\n"
+            f"    return None\n",
             encoding="utf-8",
         )
 
@@ -639,6 +653,7 @@ class PluginManager:
             self._deactivate_one(desc)
 
         import shutil as _shutil
+
         try:
             _shutil.rmtree(desc.path)
         except OSError as exc:
@@ -651,12 +666,12 @@ class PluginManager:
     # -- Introspection -----------------------------------------------
 
     @property
-    def plugins(self) -> Dict[str, PluginDescriptor]:
+    def plugins(self) -> dict[str, PluginDescriptor]:
         """All discovered plugins (enabled and disabled)."""
         return dict(self._plugins)
 
     @property
-    def active_plugins(self) -> List[PluginDescriptor]:
+    def active_plugins(self) -> list[PluginDescriptor]:
         """Only currently activated plugins."""
         return [d for d in self._plugins.values() if d.activated]
 

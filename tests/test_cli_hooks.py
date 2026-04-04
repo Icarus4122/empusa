@@ -10,12 +10,12 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-
 # -- init_hook_dirs ---------------------------------------------------
+
 
 class TestInitHookDirs:
     def test_creates_event_subdirs(self, tmp_path: Path) -> None:
-        from empusa.cli_hooks import init_hook_dirs, HOOK_EVENTS
+        from empusa.cli_hooks import HOOK_EVENTS, init_hook_dirs
 
         real_hooks = tmp_path / "hooks"
         with patch("empusa.cli_hooks.HOOKS_DIR", real_hooks):
@@ -27,9 +27,10 @@ class TestInitHookDirs:
 
 # -- list_hooks -------------------------------------------------------
 
+
 class TestListHooks:
     def test_returns_dict_of_events(self, tmp_path: Path) -> None:
-        from empusa.cli_hooks import list_hooks, HOOK_EVENTS
+        from empusa.cli_hooks import HOOK_EVENTS, list_hooks
 
         hooks_dir = tmp_path / "hooks"
         for evt in HOOK_EVENTS:
@@ -45,7 +46,7 @@ class TestListHooks:
         assert "my_hook.py" in result.get("on_startup", [])
 
     def test_empty_when_no_hooks(self, tmp_path: Path) -> None:
-        from empusa.cli_hooks import list_hooks, HOOK_EVENTS
+        from empusa.cli_hooks import HOOK_EVENTS, list_hooks
 
         hooks_dir = tmp_path / "hooks"
         for evt in HOOK_EVENTS:
@@ -59,6 +60,7 @@ class TestListHooks:
 
 
 # -- create_example_hook ----------------------------------------------
+
 
 class TestCreateExampleHook:
     def test_creates_file_with_log_info(self, tmp_path: Path) -> None:
@@ -88,6 +90,7 @@ class TestCreateExampleHook:
 
 # -- _fire_legacy_hooks_fallback --------------------------------------
 
+
 class TestFireLegacyHooksFallback:
     def test_executes_run_function(self, tmp_path: Path) -> None:
         from empusa.cli_hooks import fire_legacy_hooks_fallback
@@ -113,6 +116,7 @@ class TestFireLegacyHooksFallback:
 
 
 # -- set_event_bus ----------------------------------------------------
+
 
 class TestSetEventBus:
     def test_sets_module_global(self) -> None:

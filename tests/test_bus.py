@@ -9,7 +9,7 @@ Covers: EventBus subscribe / unsubscribe / emit / emit_legacy,
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 import pytest
 
@@ -34,16 +34,17 @@ def bus(tmp_path: Path) -> EventBus:
 
 # -- subscribe / unsubscribe ----------------------------------------
 
+
 class TestSubscription:
     def test_subscribe_and_receive(self, bus: EventBus) -> None:
-        received: List[EmpusaEvent] = []
+        received: list[EmpusaEvent] = []
         bus.subscribe("on_startup", received.append)
         bus.emit(StartupEvent())
         assert len(received) == 1
         assert received[0].event == "on_startup"
 
     def test_unsubscribe(self, bus: EventBus) -> None:
-        received: List[EmpusaEvent] = []
+        received: list[EmpusaEvent] = []
         bus.subscribe("on_startup", received.append)
         assert bus.unsubscribe("on_startup", received.append) is True
         bus.emit(StartupEvent())
@@ -59,6 +60,7 @@ class TestSubscription:
 
 
 # -- emit ------------------------------------------------------------
+
 
 class TestEmit:
     def test_timestamp_autofilled(self, bus: EventBus) -> None:
@@ -82,9 +84,10 @@ class TestEmit:
 
 # -- emit_legacy -----------------------------------------------------
 
+
 class TestEmitLegacy:
     def test_constructs_typed_event(self, bus: EventBus) -> None:
-        received: List[EmpusaEvent] = []
+        received: list[EmpusaEvent] = []
         bus.subscribe("post_scan", received.append)
         bus.emit_legacy("post_scan", {"ip": "10.10.10.5", "os_type": "Linux"})
         assert len(received) == 1
@@ -92,14 +95,14 @@ class TestEmitLegacy:
         assert received[0].ip == "10.10.10.5"  # type: ignore[attr-defined]
 
     def test_unknown_event_uses_base(self, bus: EventBus) -> None:
-        received: List[EmpusaEvent] = []
+        received: list[EmpusaEvent] = []
         bus.subscribe("custom_event", received.append)
         bus.emit_legacy("custom_event", {"key": "value"})
         assert len(received) == 1
         assert isinstance(received[0], EmpusaEvent)
 
     def test_context_enriched(self, bus: EventBus) -> None:
-        received: List[EmpusaEvent] = []
+        received: list[EmpusaEvent] = []
         bus.subscribe("on_startup", received.append)
         bus.emit_legacy("on_startup")
         evt = received[0]
@@ -109,6 +112,7 @@ class TestEmitLegacy:
 
 # -- legacy hook adapter ---------------------------------------------
 
+
 class TestLegacyHooks:
     def test_hook_script_executed(self, tmp_path: Path) -> None:
         hooks_dir = tmp_path / "hooks"
@@ -116,11 +120,7 @@ class TestLegacyHooks:
         evt_dir.mkdir(parents=True)
         marker = tmp_path / "marker.txt"
         script = evt_dir / "test_hook.py"
-        script.write_text(
-            f"import pathlib\n"
-            f"def run(context):\n"
-            f"    pathlib.Path(r'{marker}').write_text('fired')\n"
-        )
+        script.write_text(f"import pathlib\ndef run(context):\n    pathlib.Path(r'{marker}').write_text('fired')\n")
         bus = EventBus(hooks_dir=hooks_dir, quiet=True)
         bus.emit(PostScanEvent(ip="1.2.3.4"))
         assert marker.read_text() == "fired"
@@ -152,15 +152,16 @@ class TestLegacyHooks:
 
 # -- plugin manager routing ------------------------------------------
 
+
 class TestPluginRouting:
     def test_no_pm_no_error(self, bus: EventBus) -> None:
         bus.emit(StartupEvent())  # No PM attached, should just work
 
     def test_attached_pm_receives_events(self, bus: EventBus) -> None:
-        dispatched: List[str] = []
+        dispatched: list[str] = []
 
         class FakePM:
-            def dispatch_event(self, name: str, event: EmpusaEvent) -> List[Dict[str, Any]]:
+            def dispatch_event(self, name: str, event: EmpusaEvent) -> list[dict[str, Any]]:
                 dispatched.append(name)
                 return [{"plugin": "fake", "result": "ok"}]
 

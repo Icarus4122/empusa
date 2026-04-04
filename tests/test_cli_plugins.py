@@ -14,8 +14,8 @@ from unittest.mock import MagicMock, patch
 
 from empusa.cli_plugins import list_plugins_render
 
-
 # -- list_plugins_render ---------------------------------------------
+
 
 class TestListPluginsRender:
     def test_none_plugin_manager(self) -> None:
@@ -51,11 +51,12 @@ class TestListPluginsRender:
 
 # -- Config value JSON parsing ----------------------------------------
 
+
 class TestConfigJsonParsing:
     """Verify that plugin config editing parses typed values via json.loads."""
 
     def test_json_loads_int(self) -> None:
-        """json.loads('42') → int(42)"""
+        """json.loads('42') -> int(42)"""
         assert json.loads("42") == 42
 
     def test_json_loads_bool(self) -> None:
@@ -77,6 +78,7 @@ class TestConfigJsonParsing:
 
 # -- create_plugin calls refresh() -----------------------------------
 
+
 class TestCreatePluginRefresh:
     @patch("empusa.cli_plugins.Prompt")
     @patch("empusa.cli_plugins.Confirm")
@@ -90,12 +92,12 @@ class TestCreatePluginRefresh:
         from empusa.cli_plugins import create_plugin
 
         mock_prompt.ask.side_effect = [
-            "test_plugin",   # name
-            "1.0.0",         # version
-            "Test Author",   # author
-            "A test plugin", # description
-            "",              # events (default)
-            "",              # permissions (default)
+            "test_plugin",  # name
+            "1.0.0",  # version
+            "Test Author",  # author
+            "A test plugin",  # description
+            "",  # events (default)
+            "",  # permissions (default)
         ]
         mock_confirm.ask.return_value = True
 
@@ -109,6 +111,7 @@ class TestCreatePluginRefresh:
 
 
 # -- uninstall calls refresh() ----------------------------------------
+
 
 class TestUninstallRefresh:
     @patch("empusa.cli_plugins.Prompt")

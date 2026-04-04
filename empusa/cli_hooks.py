@@ -22,17 +22,17 @@ import platform
 import subprocess
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from rich.prompt import Prompt, Confirm
+from rich.prompt import Confirm, Prompt
 from rich.table import Table
 
 from empusa.cli_common import (
     CONFIG,
-    console,
-    HOOKS_DIR,
     HOOK_EVENTS,
+    HOOKS_DIR,
     IS_WINDOWS,
+    console,
     log_error,
     log_info,
     log_success,
@@ -49,18 +49,18 @@ if TYPE_CHECKING:
 # -- Compact summary helpers (for dashboard) -------------------------
 
 
-def hooks_summary() -> Dict[str, Any]:
+def hooks_summary() -> dict[str, Any]:
     """Return a compact summary of hook installation state.
 
     Returns a dict with:
-        configured_events  – number of events that have ≥ 1 script
-        total_events       – total event count (len(HOOK_EVENTS))
-        total_scripts      – total script count across all events
-        configured         – list of (event, [script_names]) for non-empty events
-        empty_count        – number of events with zero scripts
+        configured_events  - number of events that have ≥ 1 script
+        total_events       - total event count (len(HOOK_EVENTS))
+        total_scripts      - total script count across all events
+        configured         - list of (event, [script_names]) for non-empty events
+        empty_count        - number of events with zero scripts
     """
     hooks = list_hooks()
-    configured: List[Tuple[str, List[str]]] = []
+    configured: list[tuple[str, list[str]]] = []
     total_scripts = 0
     for evt in HOOK_EVENTS:
         scripts = hooks.get(evt, [])
@@ -83,7 +83,7 @@ def hooks_coverage_render() -> str:
     collapsed into a single dim count line.
     """
     info = hooks_summary()
-    lines: List[str] = []
+    lines: list[str] = []
 
     if not info["configured"]:
         lines.append("[dim]No hooks configured.[/dim]")
@@ -99,20 +99,18 @@ def hooks_coverage_render() -> str:
 
 
 def manager_overview_render(
-    pm: Optional[PluginManager] = None,
-    reg: Optional[CapabilityRegistry] = None,
+    pm: PluginManager | None = None,
+    reg: CapabilityRegistry | None = None,
 ) -> Table:
     """Return the Plugin & Hook Manager overview as a single Rich Table.
 
     Combines status counters and hook coverage into one table that
-    mirrors the module workshop pattern (table → caption → flat menu).
+    mirrors the module workshop pattern (table -> caption -> flat menu).
     """
     h = hooks_summary()
     total_plugins = pm.plugin_count() if pm else 0
     active_plugins = pm.active_count() if pm else 0
-    enabled_plugins = (
-        sum(1 for d in pm.plugins.values() if d.enabled) if pm else 0
-    )
+    enabled_plugins = sum(1 for d in pm.plugins.values() if d.enabled) if pm else 0
     cap_total = sum(reg.summary().values()) if reg else 0
 
     table = Table(
@@ -164,7 +162,7 @@ def manager_overview_render(
         )
 
     # -- Warnings --
-    warnings: List[str] = []
+    warnings: list[str] = []
     if h["configured_events"] == 0:
         warnings.append("no hooks installed")
     if total_plugins > 0 and active_plugins == 0:
@@ -176,18 +174,14 @@ def manager_overview_render(
         )
 
     # -- Caption --
-    table.caption = (
-        f"{h['total_scripts']} hook script(s)  ·  "
-        f"{total_plugins} plugin(s)  ·  "
-        f"{cap_total} capability/ies"
-    )
+    table.caption = f"{h['total_scripts']} hook script(s)  ·  {total_plugins} plugin(s)  ·  {cap_total} capability/ies"
     table.caption_style = "cyan"
     return table
 
 
 # -- Bus reference (set by cli.main after initialization) -----------
 
-_event_bus: Optional[EventBus] = None
+_event_bus: EventBus | None = None
 
 
 def set_event_bus(bus: EventBus) -> None:
@@ -196,12 +190,12 @@ def set_event_bus(bus: EventBus) -> None:
     _event_bus = bus
 
 
-def get_event_bus() -> Optional[EventBus]:
+def get_event_bus() -> EventBus | None:
     """Return the current event bus reference (may be ``None``)."""
     return _event_bus
 
 
-def fire_legacy_hooks_fallback(event: str, context: Optional[Dict[str, Any]] = None) -> None:
+def fire_legacy_hooks_fallback(event: str, context: dict[str, Any] | None = None) -> None:
     """Public wrapper for the legacy hook execution fallback."""
     _fire_legacy_hooks_fallback(event, context)
 
@@ -219,9 +213,7 @@ def init_hook_dirs() -> None:
             "# Empusa Hooks\n\n"
             "Drop Python scripts into any event folder below.\n"
             "Each script must define a `run(context)` function.\n\n"
-            "## Hook Events\n\n"
-            + "\n".join(f"- **{evt}/**" for evt in HOOK_EVENTS)
-            + "\n\n"
+            "## Hook Events\n\n" + "\n".join(f"- **{evt}/**" for evt in HOOK_EVENTS) + "\n\n"
             "## Context Dict\n\n"
             "Every hook receives a `context` dict with at minimum:\n"
             "```python\n"
@@ -229,14 +221,14 @@ def init_hook_dirs() -> None:
             '    "event": "<event_name>",\n'
             '    "timestamp": "2026-03-29 19:45:12",\n'
             '    "session_env": "kobold",\n'
-            '    # ... plus event-specific keys\n'
+            "    # ... plus event-specific keys\n"
             "}\n"
             "```\n\n"
             "## Example\n\n"
             "```python\n"
             "# empusa/hooks/on_loot_add/notify.py\n"
             "def run(context):\n"
-            '    print(f"[Hook] New loot on {context[\'host\']}: {context[\'username\']}")\n'
+            "    print(f\"[Hook] New loot on {context['host']}: {context['username']}\")\n"
             "```\n",
             encoding="utf-8",
         )
@@ -249,7 +241,7 @@ def init_hook_dirs() -> None:
             gitkeep.touch()
 
 
-def run_hooks(event: str, context: Optional[Dict[str, Any]] = None) -> None:
+def run_hooks(event: str, context: dict[str, Any] | None = None) -> None:
     """Emit an event through the bus (legacy hooks + plugins).
 
     This is the backward-compatible wrapper. All existing call sites
@@ -268,13 +260,13 @@ def run_hooks(event: str, context: Optional[Dict[str, Any]] = None) -> None:
         _fire_legacy_hooks_fallback(event, context)
 
 
-def _fire_legacy_hooks_fallback(event: str, context: Optional[Dict[str, Any]] = None) -> None:
+def _fire_legacy_hooks_fallback(event: str, context: dict[str, Any] | None = None) -> None:
     """Direct hook execution fallback (used before the bus is initialized)."""
     evt_dir = HOOKS_DIR / event
     if not evt_dir.is_dir():
         return
 
-    ctx: Dict[str, Any] = context.copy() if context else {}
+    ctx: dict[str, Any] = context.copy() if context else {}
     ctx.setdefault("event", event)
     ctx.setdefault("timestamp", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     ctx.setdefault("session_env", CONFIG.get("session_env", ""))
@@ -297,13 +289,13 @@ def _fire_legacy_hooks_fallback(event: str, context: Optional[Dict[str, Any]] = 
             log_error(f"Hook error [{event}/{script.name}]: {e}")
 
 
-def list_hooks() -> Dict[str, List[str]]:
+def list_hooks() -> dict[str, list[str]]:
     """List all installed hook scripts grouped by event.
 
     Returns:
         Dict mapping event names to lists of script filenames.
     """
-    result: Dict[str, List[str]] = {}
+    result: dict[str, list[str]] = {}
     for evt in HOOK_EVENTS:
         evt_dir = HOOKS_DIR / evt
         if evt_dir.is_dir():
@@ -335,33 +327,33 @@ def create_example_hook(event: str) -> Path:
 
     example_path = evt_dir / name
 
-    context_hints: Dict[str, str] = {
-        "on_startup": '    # context keys: event, timestamp, session_env',
-        "on_shutdown": '    # context keys: event, timestamp, session_env, killed_pids, cleaned_hooks',
-        "post_build": '    # context keys: event, timestamp, session_env, env_name, env_path, ips',
-        "post_scan": '    # context keys: event, timestamp, session_env, ip, scan_output, os_type',
-        "on_loot_add": '    # context keys: event, timestamp, session_env, host, cred_type, username, secret, source',
-        "on_report_generated": '    # context keys: event, timestamp, session_env, report_path, env_name',
-        "on_env_select": '    # context keys: event, timestamp, session_env, env_name',
+    context_hints: dict[str, str] = {
+        "on_startup": "    # context keys: event, timestamp, session_env",
+        "on_shutdown": "    # context keys: event, timestamp, session_env, killed_pids, cleaned_hooks",
+        "post_build": "    # context keys: event, timestamp, session_env, env_name, env_path, ips",
+        "post_scan": "    # context keys: event, timestamp, session_env, ip, scan_output, os_type",
+        "on_loot_add": "    # context keys: event, timestamp, session_env, host, cred_type, username, secret, source",
+        "on_report_generated": "    # context keys: event, timestamp, session_env, report_path, env_name",
+        "on_env_select": "    # context keys: event, timestamp, session_env, env_name",
     }
 
-    hint = context_hints.get(event, '    # context keys: event, timestamp, session_env')
+    hint = context_hints.get(event, "    # context keys: event, timestamp, session_env")
 
     example_path.write_text(
         f'"""\nEmpusa Hook - {event}\n\n'
-        f'This script runs automatically when the \'{event}\' event fires.\n'
+        f"This script runs automatically when the '{event}' event fires.\n"
         f'Edit the run() function below to add your custom logic.\n"""\n\n'
-        f'from empusa.cli_common import log_info\n\n\n'
-        f'def run(context: dict) -> None:\n'
-        f'{hint}\n'
-        f'\n'
-        f'    log_info(f"[Hook][{event}] fired at {{context[\'timestamp\']}}"\n'
-        f'            f" | env: {{context.get(\'session_env\', \'N/A\')}}"\n'
-        f'            )\n'
-        f'\n'
-        f'    # --- Add your logic below ---\n'
-        f'    # Example: send a notification, write to a log, trigger a script, etc.\n'
-        f'    pass\n',
+        f"from empusa.cli_common import log_info\n\n\n"
+        f"def run(context: dict) -> None:\n"
+        f"{hint}\n"
+        f"\n"
+        f"    log_info(f\"[Hook][{event}] fired at {{context['timestamp']}}\"\n"
+        f"            f\" | env: {{context.get('session_env', 'N/A')}}\"\n"
+        f"            )\n"
+        f"\n"
+        f"    # --- Add your logic below ---\n"
+        f"    # Example: send a notification, write to a log, trigger a script, etc.\n"
+        f"    pass\n",
         encoding="utf-8",
     )
 
@@ -473,14 +465,14 @@ def test_fire_hook() -> None:
     evt_choice = Prompt.ask("Select event #", choices=[str(i) for i in range(1, len(HOOK_EVENTS) + 1)])
     evt_name = HOOK_EVENTS[int(evt_choice) - 1]
     log_info(f"\nFiring [bold]{evt_name}[/bold] with test context...", "cyan")
-    test_ctx: Dict[str, Any] = {
+    test_ctx: dict[str, Any] = {
         "event": evt_name,
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "session_env": CONFIG.get('session_env', 'test'),
+        "session_env": CONFIG.get("session_env", "test"),
         "_test_fire": True,
         "ip": "10.10.10.10",
         "host": "10.10.10.10",
-        "env_name": CONFIG.get('session_env', 'test'),
+        "env_name": CONFIG.get("session_env", "test"),
         "env_path": str(Path.cwd()),
         "username": "test_user",
         "secret": "test_secret",
@@ -497,7 +489,7 @@ def test_fire_hook() -> None:
 def delete_hook_ui() -> None:
     """Interactively delete a hook script."""
     hooks = list_hooks()
-    all_scripts: List[Tuple[str, str]] = []
+    all_scripts: list[tuple[str, str]] = []
     for evt in HOOK_EVENTS:
         for s in hooks.get(evt, []):
             all_scripts.append((evt, s))

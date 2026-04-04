@@ -1,6 +1,8 @@
 # Empusa
 
 [![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/downloads/)
+[![CI](https://github.com/Icarus4122/empusa/actions/workflows/ci.yml/badge.svg)](https://github.com/Icarus4122/empusa/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/Icarus4122/empusa/graph/badge.svg)](https://codecov.io/gh/Icarus4122/empusa)
 [![Version](https://img.shields.io/badge/version-2.2.0-purple.svg)](https://github.com/Icarus4122/empusa)
 [![License: GPL v3+](https://img.shields.io/badge/license-GPLv3%2B-red.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-console-informational.svg)](#usage)
@@ -115,17 +117,72 @@ The project is especially strong where **operator workflow consistency** matters
 
 ## Architecture
 
-Empusa follows an event-driven console architecture.
+Empusa follows an event-driven console architecture with five distinct layers.
 
-```text
-Operator Action
-    ↓
-CLI Controller
-    ↓
-Event Bus
-    ├─ Legacy Hooks      (run(context))
-    ├─ Plugin Manager    (activate / deactivate / event dispatch)
-    └─ Services Layer    (logging, artifact writing, env resolution, loot access, command execution)
+```mermaid
+flowchart TB
+    OP(["fa:fa-terminal Operator"])
+
+    OP --> MENU
+
+    subgraph INTERFACE [" CLI Layer "]
+        direction LR
+        MENU["cli.py\nInteractive Menu"]
+        SCAN["cli_scan\nHost Discovery"]
+        LOOT["cli_loot\nLoot Tracker"]
+        TUNNEL["cli_tunnel\nReverse Tunnels"]
+        HASH["cli_hash\nHash ID & Crack"]
+        AD["cli_ad\nAD Playbooks"]
+        PRIVESC["cli_privesc\nPrivesc Enum"]
+        MODULES["cli_modules\nModule Workshop"]
+        REPORTS["cli_reports\nReport Builder"]
+    end
+
+    MENU --- SCAN & LOOT & TUNNEL
+    MENU --- HASH & AD & PRIVESC
+    MENU --- MODULES & REPORTS
+
+    SCAN & LOOT & REPORTS --> BUS
+
+    subgraph ENGINE [" Event Engine "]
+        BUS["bus.py — EventBus\ntyped dispatch · async-safe"]
+    end
+
+    BUS --> HOOKS & PM
+
+    subgraph EXTENSIONS [" Extension Layer "]
+        direction LR
+        HOOKS["hooks/\nLegacy Scripts\nrun&lpar;context&rpar;"]
+        PM["plugins.py\nPlugin Manager\nactivate · deactivate · resolve"]
+    end
+
+    PM --> REG & SVC
+
+    subgraph CORE [" Core Services "]
+        REG["registry.py\nCapability Registry\nprovider lookup"]
+        subgraph SVC [" Scoped Services "]
+            direction LR
+            LOG["LoggerService"]
+            ART["ArtifactWriter"]
+            LA["LootAccessor"]
+            ENV["EnvResolver"]
+            CMD["CommandRunner"]
+        end
+    end
+
+    classDef layer fill:none,stroke:#555,stroke-width:2px,color:#ccc,rx:8
+    classDef node_default fill:#1a1a2e,stroke:#7c3aed,color:#e2e8f0,rx:6
+    classDef bus_node fill:#1a1a2e,stroke:#f59e0b,color:#fbbf24,rx:6
+    classDef ext_node fill:#1a1a2e,stroke:#10b981,color:#6ee7b7,rx:6
+    classDef svc_node fill:#1a1a2e,stroke:#3b82f6,color:#93c5fd,rx:6
+    classDef op_node fill:#7c3aed,stroke:#7c3aed,color:#fff
+
+    class INTERFACE,ENGINE,EXTENSIONS,CORE layer
+    class MENU,SCAN,LOOT,TUNNEL,HASH,AD,PRIVESC,MODULES,REPORTS node_default
+    class BUS bus_node
+    class HOOKS,PM ext_node
+    class REG,LOG,ART,LA,ENV,CMD svc_node
+    class OP op_node
 ```
 
 ### Core layers

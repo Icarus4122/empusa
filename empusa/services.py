@@ -20,12 +20,12 @@ import json
 import subprocess
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Union, cast
+from typing import Any, Callable, cast
 
 from rich.console import Console
 
-
 # -- Logger Service --------------------------------------------------
+
 
 class LoggerService:
     """Structured logging through a Rich console.
@@ -64,6 +64,7 @@ class LoggerService:
 
 # -- Artifact Writer -------------------------------------------------
 
+
 class ArtifactWriter:
     """Safe file creation scoped to the active environment directory.
 
@@ -93,11 +94,10 @@ class ArtifactWriter:
         # resolved POSIX/NT paths is reliable after .resolve().
         try:
             resolved_target.relative_to(resolved_base)
-        except ValueError:
+        except ValueError as err:
             raise ValueError(
-                f"Path escape denied: {relative_path!r} resolves outside "
-                f"the environment root ({resolved_base})"
-            )
+                f"Path escape denied: {relative_path!r} resolves outside the environment root ({resolved_base})"
+            ) from err
         return resolved_target
 
     def write(self, relative_path: str, content: str, encoding: str = "utf-8") -> Path:
@@ -141,6 +141,7 @@ class ArtifactWriter:
 
 # -- Loot Accessor ---------------------------------------------------
 
+
 class LootAccessor:
     """Read / append loot entries for the active environment.
 
@@ -150,13 +151,13 @@ class LootAccessor:
     def __init__(self, env_resolver: EnvResolver) -> None:
         self._env = env_resolver
 
-    def _loot_path(self) -> Optional[Path]:
+    def _loot_path(self) -> Path | None:
         base = self._env.env_path()
         if base is None:
             return None
         return base / "loot.json"
 
-    def read_all(self) -> List[Dict[str, Any]]:
+    def read_all(self) -> list[dict[str, Any]]:
         """Return all loot entries (empty list if none)."""
         path = self._loot_path()
         if path is None or not path.exists():
@@ -165,12 +166,12 @@ class LootAccessor:
             raw = path.read_text(encoding="utf-8")
             parsed: Any = json.loads(raw)
             if isinstance(parsed, list):
-                return cast(List[Dict[str, Any]], parsed)
+                return cast(list[dict[str, Any]], parsed)
         except (json.JSONDecodeError, OSError):
             pass
         return []
 
-    def append(self, entry: Dict[str, Any]) -> None:
+    def append(self, entry: dict[str, Any]) -> None:
         """Append a single loot entry and flush to disk."""
         path = self._loot_path()
         if path is None:
@@ -183,13 +184,14 @@ class LootAccessor:
     def count(self) -> int:
         return len(self.read_all())
 
-    def search(self, key: str, value: str) -> List[Dict[str, Any]]:
+    def search(self, key: str, value: str) -> list[dict[str, Any]]:
         """Return entries where *key* contains *value* (case-insensitive)."""
         value_lower = value.lower()
         return [e for e in self.read_all() if value_lower in str(e.get(key, "")).lower()]
 
 
 # -- Environment Resolver --------------------------------------------
+
 
 class EnvResolver:
     """Resolves environment paths and metadata.
@@ -198,14 +200,14 @@ class EnvResolver:
     (injected at init) to determine the active environment.
     """
 
-    def __init__(self, config: Dict[str, Any]) -> None:
+    def __init__(self, config: dict[str, Any]) -> None:
         self._config = config
 
     def env_name(self) -> str:
         """Return the active environment name (may be empty)."""
         return str(self._config.get("session_env", ""))
 
-    def env_path(self) -> Optional[Path]:
+    def env_path(self) -> Path | None:
         """Return the absolute path to the active environment, or ``None``."""
         name = self.env_name()
         if not name:
@@ -215,21 +217,19 @@ class EnvResolver:
             return p
         return Path.cwd() / p
 
-    def hosts(self) -> List[str]:
+    def hosts(self) -> list[str]:
         """Return a list of host directory names inside the environment."""
         base = self.env_path()
         if base is None or not base.is_dir():
             return []
-        return sorted(
-            d.name for d in base.iterdir()
-            if d.is_dir() and "-" in d.name and not d.name.startswith(".")
-        )
+        return sorted(d.name for d in base.iterdir() if d.is_dir() and "-" in d.name and not d.name.startswith("."))
 
     def is_active(self) -> bool:
         return bool(self.env_name())
 
 
 # -- Command Runner --------------------------------------------------
+
 
 class CommandRunner:
     """Execute subprocesses with optional pre/post event hooks.
@@ -244,7 +244,7 @@ class CommandRunner:
         self,
         logger: LoggerService,
         dry_run: bool = False,
-        emit_fn: Optional[Callable[..., None]] = None,
+        emit_fn: Callable[..., None] | None = None,
     ) -> None:
         self._log = logger
         self._dry_run = dry_run
@@ -252,9 +252,9 @@ class CommandRunner:
 
     def run(
         self,
-        cmd: Union[List[str], str],
-        cwd: Optional[str] = None,
-        timeout: Optional[int] = None,
+        cmd: list[str] | str,
+        cwd: str | None = None,
+        timeout: int | None = None,
         capture: bool = True,
         shell: bool = False,
     ) -> subprocess.CompletedProcess[str]:
@@ -268,7 +268,7 @@ class CommandRunner:
         if isinstance(cmd, list):
             cmd_str = " ".join(cmd)
             cmd_first = cmd[0] if cmd else ""
-            cmd_rest: List[str] = cmd[1:] if cmd else []
+            cmd_rest: list[str] = cmd[1:] if cmd else []
         else:
             cmd_str = str(cmd)
             cmd_first = cmd_str.split()[0] if cmd_str.strip() else ""
@@ -278,11 +278,14 @@ class CommandRunner:
 
         # Fire pre-command event
         if self._emit:
-            self._emit("pre_command", {
-                "command": cmd_first,
-                "args": cmd_rest,
-                "working_dir": working_dir,
-            })
+            self._emit(
+                "pre_command",
+                {
+                    "command": cmd_first,
+                    "args": cmd_rest,
+                    "working_dir": working_dir,
+                },
+            )
 
         if self._dry_run:
             self._log.info(f"[DRY-RUN] {cmd_str}", "dim")
@@ -308,18 +311,22 @@ class CommandRunner:
 
         # Fire post-command event
         if self._emit:
-            self._emit("post_command", {
-                "command": cmd_first,
-                "args": cmd_rest,
-                "return_code": result.returncode,
-                "stdout": (result.stdout or "")[:2048],
-                "stderr": (result.stderr or "")[:2048],
-            })
+            self._emit(
+                "post_command",
+                {
+                    "command": cmd_first,
+                    "args": cmd_rest,
+                    "return_code": result.returncode,
+                    "stdout": (result.stdout or "")[:2048],
+                    "stderr": (result.stderr or "")[:2048],
+                },
+            )
 
         return result
 
 
 # -- Service Container -----------------------------------------------
+
 
 class Services:
     """Aggregates all runtime services into a single object that
@@ -368,15 +375,13 @@ class _GatedLoot:
 
     def _require(self, perm: str) -> None:
         if perm not in self._perms:
-            raise PermissionError(
-                f"Plugin {self._name!r} lacks '{perm}' permission"
-            )
+            raise PermissionError(f"Plugin {self._name!r} lacks '{perm}' permission")
 
-    def read_all(self) -> List[Dict[str, Any]]:
+    def read_all(self) -> list[dict[str, Any]]:
         self._require("loot_read")
         return self._loot.read_all()
 
-    def append(self, entry: Dict[str, Any]) -> None:
+    def append(self, entry: dict[str, Any]) -> None:
         self._require("loot_write")
         self._loot.append(entry)
 
@@ -384,7 +389,7 @@ class _GatedLoot:
         self._require("loot_read")
         return self._loot.count()
 
-    def search(self, key: str, value: str) -> List[Dict[str, Any]]:
+    def search(self, key: str, value: str) -> list[dict[str, Any]]:
         self._require("loot_read")
         return self._loot.search(key, value)
 
@@ -399,9 +404,7 @@ class _GatedArtifact:
 
     def _require(self) -> None:
         if "filesystem" not in self._perms:
-            raise PermissionError(
-                f"Plugin {self._name!r} lacks 'filesystem' permission"
-            )
+            raise PermissionError(f"Plugin {self._name!r} lacks 'filesystem' permission")
 
     def write(self, relative_path: str, content: str, encoding: str = "utf-8") -> Path:
         self._require()
@@ -426,16 +429,14 @@ class _GatedRunner:
 
     def run(
         self,
-        cmd: Union[List[str], str],
-        cwd: Optional[str] = None,
-        timeout: Optional[int] = None,
+        cmd: list[str] | str,
+        cwd: str | None = None,
+        timeout: int | None = None,
         capture: bool = True,
         shell: bool = False,
     ) -> subprocess.CompletedProcess[str]:
         if "subprocess" not in self._perms:
-            raise PermissionError(
-                f"Plugin {self._name!r} lacks 'subprocess' permission"
-            )
+            raise PermissionError(f"Plugin {self._name!r} lacks 'subprocess' permission")
         return self._runner.run(cmd, cwd=cwd, timeout=timeout, capture=capture, shell=shell)
 
 
@@ -448,18 +449,18 @@ class ScopedServices:
 
     Permission mapping:
 
-    - ``loot_read``  → ``loot.read_all()``, ``loot.count()``, ``loot.search()``
-    - ``loot_write`` → ``loot.append()``
-    - ``filesystem`` → ``artifact.write()``, ``artifact.write_bytes()``
-    - ``subprocess`` → ``runner.run()``
-    - ``registry``   → checked at activation time (not runtime)
-    - ``network``    → advisory only (Python cannot sandbox sockets)
+    - ``loot_read``  -> ``loot.read_all()``, ``loot.count()``, ``loot.search()``
+    - ``loot_write`` -> ``loot.append()``
+    - ``filesystem`` -> ``artifact.write()``, ``artifact.write_bytes()``
+    - ``subprocess`` -> ``runner.run()``
+    - ``registry``   -> checked at activation time (not runtime)
+    - ``network``    -> advisory only (Python cannot sandbox sockets)
 
     ``logger`` and ``env`` are always available with no permission
     requirement because they are read-only / output-only.
     """
 
-    def __init__(self, base: Services, permissions: List[str], plugin_name: str) -> None:
+    def __init__(self, base: Services, permissions: list[str], plugin_name: str) -> None:
         perms = frozenset(permissions)
         self.logger: LoggerService = base.logger
         self.env: EnvResolver = base.env

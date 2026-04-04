@@ -13,42 +13,49 @@ import pytest
 
 from empusa.cli_build import (
     HASH_SIGNATURES,
-    identify_hash,
     detect_os,
+    identify_hash,
     validate_hostname,
     validate_ip,
     validate_port,
 )
 
-
 # -- validate_ip -------------------------------------------------------
 
+
 class TestValidateIp:
-    @pytest.mark.parametrize("ip", [
-        "10.10.10.1",
-        "192.168.1.1",
-        "0.0.0.0",
-        "255.255.255.255",
-        "127.0.0.1",
-        "::1",
-        "fe80::1",
-    ])
+    @pytest.mark.parametrize(
+        "ip",
+        [
+            "10.10.10.1",
+            "192.168.1.1",
+            "0.0.0.0",
+            "255.255.255.255",
+            "127.0.0.1",
+            "::1",
+            "fe80::1",
+        ],
+    )
     def test_valid(self, ip: str) -> None:
         assert validate_ip(ip) is True
 
-    @pytest.mark.parametrize("ip", [
-        "",
-        "not-an-ip",
-        "999.999.999.999",
-        "10.10.10",
-        "10.10.10.10.10",
-        "abc",
-    ])
+    @pytest.mark.parametrize(
+        "ip",
+        [
+            "",
+            "not-an-ip",
+            "999.999.999.999",
+            "10.10.10",
+            "10.10.10.10.10",
+            "abc",
+        ],
+    )
     def test_invalid(self, ip: str) -> None:
         assert validate_ip(ip) is False
 
 
 # -- validate_port -----------------------------------------------------
+
 
 class TestValidatePort:
     @pytest.mark.parametrize("port", ["1", "80", "443", "8080", "65535"])
@@ -62,27 +69,35 @@ class TestValidatePort:
 
 # -- validate_hostname -------------------------------------------------
 
+
 class TestValidateHostname:
-    @pytest.mark.parametrize("host", [
-        "10.10.10.1",
-        "dc01.corp.com",
-        "web-server-01",
-        "a",
-        "my.host.name",
-    ])
+    @pytest.mark.parametrize(
+        "host",
+        [
+            "10.10.10.1",
+            "dc01.corp.com",
+            "web-server-01",
+            "a",
+            "my.host.name",
+        ],
+    )
     def test_valid(self, host: str) -> None:
         assert validate_hostname(host) is True
 
-    @pytest.mark.parametrize("host", [
-        "",
-        "...",
-        "-start-with-dash.com",
-    ])
+    @pytest.mark.parametrize(
+        "host",
+        [
+            "",
+            "...",
+            "-start-with-dash.com",
+        ],
+    )
     def test_invalid(self, host: str) -> None:
         assert validate_hostname(host) is False
 
 
 # -- detect_os ---------------------------------------------------------
+
 
 class TestDetectOs:
     def test_windows_detected(self, tmp_path: Path) -> None:
@@ -105,6 +120,7 @@ class TestDetectOs:
 
 
 # -- _identify_hash ----------------------------------------------------
+
 
 class TestIdentifyHash:
     def test_md5(self) -> None:

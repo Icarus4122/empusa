@@ -14,8 +14,7 @@ compose them at runtime.  Six capability types are supported:
 The registry is a singleton-import and use ``registry`` directly.
 """
 
-from typing import Any, Callable, Dict, List, Optional, Tuple
-
+from typing import Any, Callable, Optional
 
 # Type alias for a capability handler - any callable.
 Handler = Callable[..., Any]
@@ -32,7 +31,7 @@ class _CapabilityEntry:
         handler: Handler,
         plugin_name: str = "",
         description: str = "",
-        meta: Optional[Dict[str, Any]] = None,
+        meta: Optional[dict[str, Any]] = None,
     ) -> None:
         self.name = name
         self.handler = handler
@@ -60,7 +59,7 @@ class CapabilityRegistry:
     """
 
     # The six capability categories
-    CATEGORIES: Tuple[str, ...] = (
+    CATEGORIES: tuple[str, ...] = (
         "analyzer",
         "notifier",
         "report_section",
@@ -70,7 +69,7 @@ class CapabilityRegistry:
     )
 
     def __init__(self) -> None:
-        self._store: Dict[str, List[_CapabilityEntry]] = {cat: [] for cat in self.CATEGORIES}
+        self._store: dict[str, list[_CapabilityEntry]] = {cat: [] for cat in self.CATEGORIES}
 
     # -- Generic register / get --------------------------------------
 
@@ -81,17 +80,14 @@ class CapabilityRegistry:
         handler: Handler,
         plugin_name: str = "",
         description: str = "",
-        meta: Optional[Dict[str, Any]] = None,
+        meta: Optional[dict[str, Any]] = None,
     ) -> None:
         """Register a capability under *category*.
 
         Raises ``ValueError`` if *category* is unknown.
         """
         if category not in self._store:
-            raise ValueError(
-                f"Unknown capability category {category!r}.  "
-                f"Valid: {', '.join(self.CATEGORIES)}"
-            )
+            raise ValueError(f"Unknown capability category {category!r}.  Valid: {', '.join(self.CATEGORIES)}")
         entry = _CapabilityEntry(
             name=name,
             handler=handler,
@@ -101,7 +97,7 @@ class CapabilityRegistry:
         )
         self._store[category].append(entry)
 
-    def get(self, category: str) -> List[_CapabilityEntry]:
+    def get(self, category: str) -> list[_CapabilityEntry]:
         """Return all entries for *category*."""
         return list(self._store.get(category, []))
 
@@ -141,64 +137,94 @@ class CapabilityRegistry:
     # -- Convenience registration helpers ----------------------------
 
     def register_analyzer(
-        self, name: str, handler: Handler, plugin_name: str = "", description: str = "", meta: Optional[Dict[str, Any]] = None,
+        self,
+        name: str,
+        handler: Handler,
+        plugin_name: str = "",
+        description: str = "",
+        meta: Optional[dict[str, Any]] = None,
     ) -> None:
         self.register("analyzer", name, handler, plugin_name, description, meta)
 
     def register_notifier(
-        self, name: str, handler: Handler, plugin_name: str = "", description: str = "", meta: Optional[Dict[str, Any]] = None,
+        self,
+        name: str,
+        handler: Handler,
+        plugin_name: str = "",
+        description: str = "",
+        meta: Optional[dict[str, Any]] = None,
     ) -> None:
         self.register("notifier", name, handler, plugin_name, description, meta)
 
     def register_report_section(
-        self, name: str, handler: Handler, plugin_name: str = "", description: str = "", meta: Optional[Dict[str, Any]] = None,
+        self,
+        name: str,
+        handler: Handler,
+        plugin_name: str = "",
+        description: str = "",
+        meta: Optional[dict[str, Any]] = None,
     ) -> None:
         self.register("report_section", name, handler, plugin_name, description, meta)
 
     def register_exporter(
-        self, name: str, handler: Handler, plugin_name: str = "", description: str = "", meta: Optional[Dict[str, Any]] = None,
+        self,
+        name: str,
+        handler: Handler,
+        plugin_name: str = "",
+        description: str = "",
+        meta: Optional[dict[str, Any]] = None,
     ) -> None:
         self.register("exporter", name, handler, plugin_name, description, meta)
 
     def register_tunnel_template(
-        self, name: str, handler: Handler, plugin_name: str = "", description: str = "", meta: Optional[Dict[str, Any]] = None,
+        self,
+        name: str,
+        handler: Handler,
+        plugin_name: str = "",
+        description: str = "",
+        meta: Optional[dict[str, Any]] = None,
     ) -> None:
         self.register("tunnel_template", name, handler, plugin_name, description, meta)
 
     def register_recon_strategy(
-        self, name: str, handler: Handler, plugin_name: str = "", description: str = "", meta: Optional[Dict[str, Any]] = None,
+        self,
+        name: str,
+        handler: Handler,
+        plugin_name: str = "",
+        description: str = "",
+        meta: Optional[dict[str, Any]] = None,
     ) -> None:
         self.register("recon_strategy", name, handler, plugin_name, description, meta)
 
     # -- Convenience getters -----------------------------------------
 
-    def get_analyzers(self) -> List[_CapabilityEntry]:
+    def get_analyzers(self) -> list[_CapabilityEntry]:
         return self.get("analyzer")
 
-    def get_notifiers(self) -> List[_CapabilityEntry]:
+    def get_notifiers(self) -> list[_CapabilityEntry]:
         return self.get("notifier")
 
-    def get_report_sections(self) -> List[_CapabilityEntry]:
+    def get_report_sections(self) -> list[_CapabilityEntry]:
         return self.get("report_section")
 
-    def get_exporters(self) -> List[_CapabilityEntry]:
+    def get_exporters(self) -> list[_CapabilityEntry]:
         return self.get("exporter")
 
-    def get_tunnel_templates(self) -> List[_CapabilityEntry]:
+    def get_tunnel_templates(self) -> list[_CapabilityEntry]:
         return self.get("tunnel_template")
 
-    def get_recon_strategies(self) -> List[_CapabilityEntry]:
+    def get_recon_strategies(self) -> list[_CapabilityEntry]:
         return self.get("recon_strategy")
 
     # -- Introspection -----------------------------------------------
 
-    def summary(self) -> Dict[str, int]:
-        """Return a dict of category → count."""
+    def summary(self) -> dict[str, int]:
+        """Return a dict of category -> count."""
         return {cat: len(entries) for cat, entries in self._store.items()}
 
-    def all_entries(self) -> List[_CapabilityEntry]:
+    def all_entries(self) -> list[_CapabilityEntry]:
         """Flat list of every registered capability."""
-        result: List[_CapabilityEntry] = []
+        result: list[_CapabilityEntry] = []
         for entries in self._store.values():
             result.extend(entries)
         return result

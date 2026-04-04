@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -21,8 +21,8 @@ from empusa.cli_modules import (
     list_modules,
 )
 
-
 # -- Lookup tables ---------------------------------------------------
+
 
 class TestLookupTables:
     def test_compiler_map_languages(self) -> None:
@@ -42,6 +42,7 @@ class TestLookupTables:
 
 # -- list_modules discovery -------------------------------------------
 
+
 class TestListModules:
     def _make_module(
         self,
@@ -53,7 +54,7 @@ class TestListModules:
     ) -> Path:
         mod_dir = base / name
         mod_dir.mkdir(parents=True)
-        manifest: Dict[str, Any] = {
+        manifest: dict[str, Any] = {
             "name": name,
             "language": lang,
             "description": f"Test module {name}",
@@ -108,7 +109,7 @@ class TestListModules:
         assert modules[0]["_compiled"] is False
 
     def test_dotfile_only_build_not_compiled(self, tmp_path: Path) -> None:
-        """build/ containing only dotfiles (like .gitkeep) → not compiled."""
+        """build/ containing only dotfiles (like .gitkeep) -> not compiled."""
         mod_dir = self._make_module(tmp_path, "gitkeep_mod")
         build = mod_dir / "build"
         build.mkdir(exist_ok=True)
@@ -135,6 +136,7 @@ class TestListModules:
 
 
 # -- create_module_template -------------------------------------------
+
 
 class TestCreateModuleTemplate:
     @pytest.mark.parametrize("lang", ["c", "cpp", "csharp", "rust", "go", "perl"])

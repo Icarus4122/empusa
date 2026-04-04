@@ -29,9 +29,9 @@ from __future__ import annotations
 import importlib.util
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable
 
-from empusa.events import EmpusaEvent, EVENT_MAP
+from empusa.events import EVENT_MAP, EmpusaEvent
 
 if TYPE_CHECKING:
     from empusa.plugins import PluginManager
@@ -39,6 +39,7 @@ if TYPE_CHECKING:
 
 # Type alias for a bus subscriber callback
 Subscriber = Callable[[EmpusaEvent], None]
+
 
 # No-op fallback for optional log callables
 def _noop(*_args: Any, **_kwargs: Any) -> None:
@@ -60,9 +61,9 @@ class EventBus:
         hooks_dir: Path,
         verbose: bool = False,
         quiet: bool = False,
-        log_verbose: Optional[Callable[..., None]] = None,
-        log_error: Optional[Callable[..., None]] = None,
-        session_env_fn: Optional[Callable[[], str]] = None,
+        log_verbose: Callable[..., None] | None = None,
+        log_error: Callable[..., None] | None = None,
+        session_env_fn: Callable[[], str] | None = None,
     ) -> None:
         self._hooks_dir = hooks_dir
         self._verbose = verbose
@@ -71,14 +72,14 @@ class EventBus:
         self._log_error = log_error or _noop
         self._session_env_fn = session_env_fn or (lambda: "")
 
-        # Native subscribers: event_name → [callable, …]
-        self._subscribers: Dict[str, List[Subscriber]] = {}
+        # Native subscribers: event_name -> [callable, …]
+        self._subscribers: dict[str, list[Subscriber]] = {}
 
         # Optional plugin manager (attached after init to avoid circular deps)
-        self._plugin_manager: Optional[PluginManager] = None
+        self._plugin_manager: PluginManager | None = None
 
         # Collected return values from the last emission
-        self._last_results: List[Dict[str, Any]] = []
+        self._last_results: list[dict[str, Any]] = []
 
     # -- Plugin manager attachment -----------------------------------
 
@@ -103,7 +104,7 @@ class EventBus:
 
     # -- Emission ----------------------------------------------------
 
-    def emit(self, event: EmpusaEvent) -> List[Dict[str, Any]]:
+    def emit(self, event: EmpusaEvent) -> list[dict[str, Any]]:
         """Emit a typed event to all listeners.
 
         1. Legacy hooks receive ``event.to_dict()``
@@ -119,7 +120,7 @@ class EventBus:
             event.session_env = self._session_env_fn()
 
         name = event.event
-        results: List[Dict[str, Any]] = []
+        results: list[dict[str, Any]] = []
 
         # Layer 2 - legacy hook adapter
         self._fire_legacy_hooks(name, event.to_dict())
@@ -139,7 +140,7 @@ class EventBus:
         self._last_results = results
         return results
 
-    def emit_legacy(self, event_name: str, context: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    def emit_legacy(self, event_name: str, context: dict[str, Any] | None = None) -> list[dict[str, Any]]:
         """Emit using a plain event-name string + dict (backward-compat).
 
         Constructs the appropriate typed event if one exists in EVENT_MAP,
@@ -153,26 +154,29 @@ class EventBus:
         event_cls = EVENT_MAP.get(event_name, EmpusaEvent)
         # Build the dataclass from the dict, ignoring unknown keys
         import dataclasses
+
         valid_fields = {f.name for f in dataclasses.fields(event_cls)}
         filtered = {k: v for k, v in ctx.items() if k in valid_fields}
         try:
             event_obj = event_cls(**filtered)
         except TypeError:
             # Fallback - build base event
-            event_obj = EmpusaEvent(event=event_name, timestamp=ctx.get("timestamp", ""), session_env=ctx.get("session_env", ""))
+            event_obj = EmpusaEvent(
+                event=event_name, timestamp=ctx.get("timestamp", ""), session_env=ctx.get("session_env", "")
+            )
 
         return self.emit(event_obj)
 
     # -- Last results accessor ---------------------------------------
 
     @property
-    def last_results(self) -> List[Dict[str, Any]]:
+    def last_results(self) -> list[dict[str, Any]]:
         """Return results from the most recent ``emit()`` call."""
         return list(self._last_results)
 
     # -- Legacy hook adapter (Layer 2) -------------------------------
 
-    def _fire_legacy_hooks(self, event_name: str, context: Dict[str, Any]) -> None:
+    def _fire_legacy_hooks(self, event_name: str, context: dict[str, Any]) -> None:
         """Discover and execute ``run(context)`` scripts in hooks/<event>/."""
         evt_dir = self._hooks_dir / event_name
         if not evt_dir.is_dir():
@@ -182,7 +186,8 @@ class EventBus:
         for script in scripts:
             try:
                 spec = importlib.util.spec_from_file_location(
-                    f"empusa_hook_{event_name}_{script.stem}", script,
+                    f"empusa_hook_{event_name}_{script.stem}",
+                    script,
                 )
                 if spec is None or spec.loader is None:
                     self._log_verbose(f"Warning: Could not load hook {script.name}", "yellow")
@@ -202,15 +207,13 @@ class EventBus:
 
     # -- Introspection -----------------------------------------------
 
-    def list_legacy_hooks(self) -> Dict[str, List[str]]:
-        """Return a dict of event → list of hook script filenames."""
-        result: Dict[str, List[str]] = {}
+    def list_legacy_hooks(self) -> dict[str, list[str]]:
+        """Return a dict of event -> list of hook script filenames."""
+        result: dict[str, list[str]] = {}
         for evt_name in EVENT_MAP:
             evt_dir = self._hooks_dir / evt_name
             if evt_dir.is_dir():
-                scripts = sorted(
-                    p.name for p in evt_dir.iterdir() if p.suffix == ".py" and p.is_file()
-                )
+                scripts = sorted(p.name for p in evt_dir.iterdir() if p.suffix == ".py" and p.is_file())
                 result[evt_name] = scripts
             else:
                 result[evt_name] = []

@@ -8,8 +8,6 @@ Covers: dataclass construction, to_dict serialisation,
 
 from __future__ import annotations
 
-from typing import List, Type
-
 from empusa.events import (
     ALL_EVENTS,
     EVENT_MAP,
@@ -35,7 +33,7 @@ class TestBaseEvent:
     def test_defaults(self) -> None:
         evt = EmpusaEvent()
         assert evt.event == ""
-        assert evt.timestamp != ""      # auto-filled by default_factory
+        assert evt.timestamp != ""  # auto-filled by default_factory
         assert evt.session_env == ""
 
     def test_to_dict_is_plain_dict(self) -> None:
@@ -48,7 +46,7 @@ class TestBaseEvent:
 class TestAllSubclasses:
     """Ensure every concrete event can be instantiated with only defaults."""
 
-    SUBCLASSES: List[Type[EmpusaEvent]] = [
+    SUBCLASSES: list[type[EmpusaEvent]] = [
         StartupEvent,
         ShutdownEvent,
         EnvSelectEvent,

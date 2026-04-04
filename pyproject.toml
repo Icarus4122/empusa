@@ -27,6 +27,14 @@ classifiers = [
     "Intended Audience :: Information Technology"
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.4",
+    "pre-commit>=3.0",
+]
+
 [project.urls]
 Homepage = "https://github.com/Icarus4122/empusa"
 Repository = "https://github.com/Icarus4122/empusa"
@@ -39,6 +47,15 @@ empusa = "empusa.cli:main"
 testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "-ra -q"
+
+[tool.coverage.run]
+source = ["empusa"]
+omit = ["empusa/hooks/modules/*"]
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true
+fail_under = 70
 
 [tool.ruff]
 target-version = "py39"
@@ -57,6 +74,7 @@ include = ["empusa*"]
 
 [tool.setuptools.package-data]
 empusa = [
+    "py.typed",
     "hooks/modules/**/*.json",
     "hooks/modules/**/*.c",
     "hooks/modules/**/*.cpp",

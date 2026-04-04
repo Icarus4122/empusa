@@ -8,13 +8,13 @@ Legacy hooks still receive ``dict`` via the bus adapter layer;
 new-style plugins receive the dataclass instance directly.
 """
 
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, cast
-
+from typing import Any, cast
 
 # -- Base -----------------------------------------------------------
+
 
 @dataclass
 class EmpusaEvent:
@@ -30,21 +30,22 @@ class EmpusaEvent:
     timestamp: str = field(default_factory=lambda: datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     session_env: str = ""
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to a plain dict for legacy hook compatibility."""
-        data: Dict[str, Any] = {}
+        data: dict[str, Any] = {}
         for k, v in asdict(self).items():
             # Convert Path objects to strings for JSON compat
             if isinstance(v, Path):
                 data[k] = str(v)
             elif isinstance(v, list):
-                data[k] = [str(i) if isinstance(i, Path) else i for i in cast(List[Any], v)]
+                data[k] = [str(i) if isinstance(i, Path) else i for i in cast(list[Any], v)]
             else:
                 data[k] = v
         return data
 
 
 # -- Startup / Shutdown ---------------------------------------------
+
 
 @dataclass
 class StartupEvent(EmpusaEvent):
@@ -58,11 +59,12 @@ class ShutdownEvent(EmpusaEvent):
     """Fired during graceful shutdown."""
 
     event: str = "on_shutdown"
-    killed_pids: List[str] = field(default_factory=lambda: cast(List[str], []))
-    cleaned_hooks: List[str] = field(default_factory=lambda: cast(List[str], []))
+    killed_pids: list[str] = field(default_factory=lambda: cast(list[str], []))
+    cleaned_hooks: list[str] = field(default_factory=lambda: cast(list[str], []))
 
 
 # -- Environment ----------------------------------------------------
+
 
 @dataclass
 class EnvSelectEvent(EmpusaEvent):
@@ -78,7 +80,7 @@ class PreBuildEvent(EmpusaEvent):
 
     event: str = "pre_build"
     env_name: str = ""
-    ips: List[str] = field(default_factory=lambda: cast(List[str], []))
+    ips: list[str] = field(default_factory=lambda: cast(list[str], []))
 
 
 @dataclass
@@ -88,10 +90,11 @@ class PostBuildEvent(EmpusaEvent):
     event: str = "post_build"
     env_name: str = ""
     env_path: str = ""
-    ips: List[str] = field(default_factory=lambda: cast(List[str], []))
+    ips: list[str] = field(default_factory=lambda: cast(list[str], []))
 
 
 # -- Scanning -------------------------------------------------------
+
 
 @dataclass
 class PreScanHostEvent(EmpusaEvent):
@@ -115,6 +118,7 @@ class PostScanEvent(EmpusaEvent):
 
 # -- Loot -----------------------------------------------------------
 
+
 @dataclass
 class LootAddedEvent(EmpusaEvent):
     """Fired when a loot entry is saved."""
@@ -130,6 +134,7 @@ class LootAddedEvent(EmpusaEvent):
 
 
 # -- Reporting ------------------------------------------------------
+
 
 @dataclass
 class PreReportWriteEvent(EmpusaEvent):
@@ -156,6 +161,7 @@ class ReportGeneratedEvent(EmpusaEvent):
 
 # -- Module Workshop ------------------------------------------------
 
+
 @dataclass
 class PostCompileEvent(EmpusaEvent):
     """Fired after a module compiles successfully."""
@@ -170,13 +176,14 @@ class PostCompileEvent(EmpusaEvent):
 
 # -- Command Execution (granular) -----------------------------------
 
+
 @dataclass
 class PreCommandEvent(EmpusaEvent):
     """Fired *before* a subprocess command executes."""
 
     event: str = "pre_command"
     command: str = ""
-    args: List[str] = field(default_factory=lambda: cast(List[str], []))
+    args: list[str] = field(default_factory=lambda: cast(list[str], []))
     working_dir: str = ""
 
 
@@ -186,7 +193,7 @@ class PostCommandEvent(EmpusaEvent):
 
     event: str = "post_command"
     command: str = ""
-    args: List[str] = field(default_factory=lambda: cast(List[str], []))
+    args: list[str] = field(default_factory=lambda: cast(list[str], []))
     return_code: int = 0
     stdout: str = ""
     stderr: str = ""
@@ -194,9 +201,12 @@ class PostCommandEvent(EmpusaEvent):
 
 # -- Test Fire ------------------------------------------------------
 
+
 @dataclass
 class TestFireEvent(EmpusaEvent):
     """Synthetic event used by the hook manager's test-fire feature."""
+
+    __test__ = False  # prevent pytest from collecting this dataclass
 
     event: str = "test_fire"
     _test_fire: bool = True
@@ -210,24 +220,24 @@ class TestFireEvent(EmpusaEvent):
     source: str = "test"
 
 
-# -- Registry of event name → dataclass -----------------------------
+# -- Registry of event name -> dataclass -----------------------------
 
-EVENT_MAP: Dict[str, type] = {
-    "on_startup":           StartupEvent,
-    "on_shutdown":          ShutdownEvent,
-    "on_env_select":        EnvSelectEvent,
-    "pre_build":            PreBuildEvent,
-    "post_build":           PostBuildEvent,
-    "pre_scan_host":        PreScanHostEvent,
-    "post_scan":            PostScanEvent,
-    "on_loot_add":          LootAddedEvent,
-    "pre_report_write":     PreReportWriteEvent,
-    "on_report_generated":  ReportGeneratedEvent,
-    "post_compile":         PostCompileEvent,
-    "pre_command":          PreCommandEvent,
-    "post_command":         PostCommandEvent,
-    "test_fire":            TestFireEvent,
+EVENT_MAP: dict[str, type] = {
+    "on_startup": StartupEvent,
+    "on_shutdown": ShutdownEvent,
+    "on_env_select": EnvSelectEvent,
+    "pre_build": PreBuildEvent,
+    "post_build": PostBuildEvent,
+    "pre_scan_host": PreScanHostEvent,
+    "post_scan": PostScanEvent,
+    "on_loot_add": LootAddedEvent,
+    "pre_report_write": PreReportWriteEvent,
+    "on_report_generated": ReportGeneratedEvent,
+    "post_compile": PostCompileEvent,
+    "pre_command": PreCommandEvent,
+    "post_command": PostCommandEvent,
+    "test_fire": TestFireEvent,
 }
 
 # All known event names (superset of the original HOOK_EVENTS)
-ALL_EVENTS: List[str] = list(EVENT_MAP.keys())
+ALL_EVENTS: list[str] = list(EVENT_MAP.keys())

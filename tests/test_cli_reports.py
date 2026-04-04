@@ -9,15 +9,15 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 from empusa.cli_reports import build_host_md, gather_env_host_data
 
-
 # -- gather_env_host_data ---------------------------------------------
 
+
 class TestGatherEnvHostData:
-    def _setup_env(self, env: Path, hosts: List[str]) -> None:
+    def _setup_env(self, env: Path, hosts: list[str]) -> None:
         for h in hosts:
             (env / h).mkdir(parents=True)
 
@@ -30,7 +30,7 @@ class TestGatherEnvHostData:
 
     def test_ignores_non_host_dirs(self, tmp_path: Path) -> None:
         (tmp_path / "notes.txt").write_text("hi")
-        (tmp_path / "somedir").mkdir()  # no dash → skipped
+        (tmp_path / "somedir").mkdir()  # no dash -> skipped
         data = gather_env_host_data(tmp_path)
         assert data == []
 
@@ -39,8 +39,7 @@ class TestGatherEnvHostData:
         nmap_dir = host_dir / "nmap"
         nmap_dir.mkdir(parents=True)
         (nmap_dir / "full_scan.txt").write_text(
-            "22/tcp  open  ssh     OpenSSH 8.9\n"
-            "80/tcp  open  http    Apache 2.4.52\n"
+            "22/tcp  open  ssh     OpenSSH 8.9\n80/tcp  open  http    Apache 2.4.52\n"
         )
         data = gather_env_host_data(tmp_path)
         assert len(data) == 1
@@ -77,9 +76,10 @@ class TestLootExactMatch:
 
 # -- build_host_md ----------------------------------------------------
 
+
 class TestBuildHostMd:
     def test_returns_lines(self) -> None:
-        host: Dict[str, Any] = {
+        host: dict[str, Any] = {
             "ip": "10.10.10.1",
             "os": "Linux",
             "ports": [{"port": "22", "proto": "tcp", "service": "ssh", "version": "OpenSSH 8.9"}],
@@ -91,7 +91,7 @@ class TestBuildHostMd:
         assert any("ssh" in line for line in lines)
 
     def test_empty_ports_placeholder(self) -> None:
-        host: Dict[str, Any] = {
+        host: dict[str, Any] = {
             "ip": "10.10.10.2",
             "os": "Windows",
             "ports": [],
@@ -103,8 +103,11 @@ class TestBuildHostMd:
         assert "<!-- port -->" in text
 
     def test_section_numbering(self) -> None:
-        host: Dict[str, Any] = {
-            "ip": "1.2.3.4", "os": "Linux", "ports": [], "loot": [],
+        host: dict[str, Any] = {
+            "ip": "1.2.3.4",
+            "os": "Linux",
+            "ports": [],
+            "loot": [],
         }
         lines = build_host_md(host, section=5, idx=2, category="AD")
         text = "\n".join(lines)
@@ -112,6 +115,7 @@ class TestBuildHostMd:
 
 
 # -- Public wrapper delegation ----------------------------------------
+
 
 class TestPublicWrappers:
     def test_gather_is_callable(self) -> None:

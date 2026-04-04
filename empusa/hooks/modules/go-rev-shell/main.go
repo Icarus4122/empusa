@@ -13,10 +13,10 @@ import (
  * Compile for current OS:
  *   go build -o rev_shell main.go
  *
- * Cross-compile Linux → Windows:
+ * Cross-compile Linux -> Windows:
  *   GOOS=windows GOARCH=amd64 go build -o rev_shell.exe main.go
  *
- * Cross-compile Linux → Linux:
+ * Cross-compile Linux -> Linux:
  *   GOOS=linux GOARCH=amd64 go build -o rev_shell main.go
  *
  * Listener:

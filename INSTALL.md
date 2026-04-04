@@ -3,7 +3,7 @@
 ## Requirements
 
 | Requirement | Minimum | Recommended |
-|-------------|---------|-------------|
+| ------------- | --------- | ------------- |
 | Python | 3.9 | 3.12+ |
 | pip / pipx | latest | latest |
 | nmap | any | 7.94+ |
@@ -85,7 +85,7 @@ empusa/hooks/
 └-- on_env_select/
 ```
 
-You can also create example hooks via **menu option 8 → Create example hook**.
+You can also create example hooks via **menu option 8 -> Create example hook**.
 
 ### Kali Linux Notes
 
@@ -106,7 +106,7 @@ pipx uninstall empusa && pipx install .
 ### External Tools
 
 | Tool | Install (Kali/Debian) | Used By |
-|------|----------------------|---------|
+| ------ | ---------------------- | --------- |
 | nmap | `sudo apt install nmap` | Environment Builder |
 | searchsploit | `sudo apt install exploitdb` | Exploit Discovery |
 | chisel | manual download | Reverse Tunnels |
@@ -128,7 +128,7 @@ pip uninstall empusa
 ## Troubleshooting
 
 | Problem | Solution |
-|---------|----------|
+| --------- | ---------- |
 | `command not found: empusa` | Run `pipx ensurepath` and restart your shell |
 | `externally-managed-environment` | Use `pipx` instead of `pip` |
 | `ModuleNotFoundError: rich` | Reinstall: `pipx uninstall empusa && pipx install .` |

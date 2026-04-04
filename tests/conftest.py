@@ -10,13 +10,13 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 import pytest
 from rich.console import Console
 
-from empusa.registry import CapabilityRegistry
 from empusa.bus import EventBus
+from empusa.registry import CapabilityRegistry
 from empusa.services import (
     ArtifactWriter,
     CommandRunner,
@@ -26,8 +26,8 @@ from empusa.services import (
     Services,
 )
 
-
 # -- Console ---------------------------------------------------------
+
 
 @pytest.fixture()
 def quiet_console() -> Console:
@@ -36,6 +36,7 @@ def quiet_console() -> Console:
 
 
 # -- Temporary directories ------------------------------------------
+
 
 @pytest.fixture()
 def tmp_path_factory_custom(tmp_path: Path) -> Path:
@@ -67,13 +68,14 @@ def env_dir(tmp_path: Path) -> Path:
 
 # -- Services --------------------------------------------------------
 
+
 @pytest.fixture()
 def make_services(tmp_path: Path, quiet_console: Console):
     """Factory fixture: call with an optional env path to get a Services container."""
 
     def _factory(env_path: Path | None = None) -> Services:
         env = env_path or tmp_path
-        config: Dict[str, Any] = {"session_env": str(env)}
+        config: dict[str, Any] = {"session_env": str(env)}
         logger = LoggerService(quiet_console, verbose=False, quiet=True)
         env_resolver = EnvResolver(config)
         artifact = ArtifactWriter(env_resolver)
@@ -92,20 +94,21 @@ def make_services(tmp_path: Path, quiet_console: Console):
 
 # -- Plugin helpers --------------------------------------------------
 
+
 def write_plugin(
     plugins_dir: Path,
     name: str,
     *,
-    events: List[str] | None = None,
-    requires: List[str] | None = None,
-    permissions: List[str] | None = None,
+    events: list[str] | None = None,
+    requires: list[str] | None = None,
+    permissions: list[str] | None = None,
     enabled: bool = True,
     plugin_py: str | None = None,
 ) -> Path:
     """Create a minimal plugin directory with manifest.json + plugin.py."""
     d = plugins_dir / name
     d.mkdir(parents=True, exist_ok=True)
-    manifest: Dict[str, Any] = {
+    manifest: dict[str, Any] = {
         "name": name,
         "version": "0.1.0",
         "description": f"test plugin {name}",
@@ -115,10 +118,7 @@ def write_plugin(
         "enabled": enabled,
     }
     (d / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
-    code = plugin_py or (
-        "def activate(s, r, b): pass\n"
-        "def deactivate(): pass\n"
-    )
+    code = plugin_py or ("def activate(s, r, b): pass\ndef deactivate(): pass\n")
     (d / "plugin.py").write_text(code, encoding="utf-8")
     return d
 

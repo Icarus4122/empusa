@@ -22,14 +22,13 @@ import re
 import shutil
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, cast
 
 from rich.console import Console
 
-
 # -- Global configuration --------------------------------------------
 
-CONFIG: Dict[str, Any] = {
+CONFIG: dict[str, Any] = {
     "verbose": False,
     "quiet": False,
     "dry_run": False,
@@ -39,7 +38,7 @@ CONFIG: Dict[str, Any] = {
     "enable_shell_hooks": False,
 }
 
-SESSION_ACTIONS: List[Dict[str, str]] = []
+SESSION_ACTIONS: list[dict[str, str]] = []
 
 console = Console()
 
@@ -96,7 +95,7 @@ PLUGINS_DIR = Path(__file__).resolve().parent / "plugins"
 
 # -- Event names -----------------------------------------------------
 
-HOOK_EVENTS: List[str] = [
+HOOK_EVENTS: list[str] = [
     "on_startup",
     "on_shutdown",
     "pre_build",
@@ -118,11 +117,13 @@ HOOK_EVENTS: List[str] = [
 
 def log_action(action: str, detail: str = "") -> None:
     """Record a session action for the shutdown execution flow."""
-    SESSION_ACTIONS.append({
-        "time": datetime.now().strftime("%H:%M:%S"),
-        "action": action,
-        "detail": detail,
-    })
+    SESSION_ACTIONS.append(
+        {
+            "time": datetime.now().strftime("%H:%M:%S"),
+            "action": action,
+            "detail": detail,
+        }
+    )
 
 
 def clear_screen() -> None:
@@ -140,6 +141,7 @@ def print_mini_banner() -> None:
     if CONFIG["quiet"]:
         return
     from empusa import __version__ as _ver  # lightweight: __init__.py is metadata-only
+
     console.print(
         f"[bold red]◆ Empusa[/bold red] [dim]v{_ver}[/dim]  "
         f"[dim]|[/dim]  [italic dim]Shape-shifting Recon & Exploitation Framework[/italic dim]"
@@ -150,7 +152,7 @@ def print_mini_banner() -> None:
 def print_section_header(title: str, style: str = "bold cyan") -> None:
     """Print a consistent section header with a horizontal rule.
 
-    Provides visual hierarchy: mini-banner → section header → content.
+    Provides visual hierarchy: mini-banner -> section header -> content.
     """
     if CONFIG["quiet"]:
         return
@@ -158,10 +160,10 @@ def print_section_header(title: str, style: str = "bold cyan") -> None:
     console.print()
 
 
-def render_screen(title: str, subtitle: Optional[str] = None) -> None:
+def render_screen(title: str, subtitle: str | None = None) -> None:
     """Clear the terminal and draw the standard submenu chrome.
 
-    Sequence: ``clear_screen → print_mini_banner → print_section_header``
+    Sequence: ``clear_screen -> print_mini_banner -> print_section_header``
     plus an optional italic subtitle line.  Every interactive submenu
     should call this once at the top of its redraw loop.
     """
@@ -227,7 +229,7 @@ def log_success(message: str) -> None:
 # -- Executable lookup -----------------------------------------------
 
 
-def which(cmd: str) -> Optional[str]:
+def which(cmd: str) -> str | None:
     """Locate an executable on PATH using shutil.which.
 
     Returns:
@@ -246,10 +248,10 @@ def check_tool_exists(tool_name: str) -> bool:
 
 def sanitize_filename(name: str) -> str:
     """Remove characters that are invalid in filenames."""
-    return re.sub(r'[<>:"/\\|?*]', '_', name)
+    return re.sub(r'[<>:"/\\|?*]', "_", name)
 
 
-def load_loot(loot_file: Path) -> List[Dict[str, Any]]:
+def load_loot(loot_file: Path) -> list[dict[str, Any]]:
     """Load loot entries from a JSON file.
 
     Returns:
@@ -257,10 +259,10 @@ def load_loot(loot_file: Path) -> List[Dict[str, Any]]:
     """
     if loot_file.exists():
         try:
-            raw_text = loot_file.read_text(errors='ignore')
+            raw_text = loot_file.read_text(errors="ignore")
             data = json.loads(raw_text)
             if isinstance(data, list):
-                return cast(List[Dict[str, Any]], data)
+                return cast(list[dict[str, Any]], data)
         except (json.JSONDecodeError, Exception) as e:
             log_verbose(f"Warning: Could not parse loot file: {e}", "yellow")
     return []

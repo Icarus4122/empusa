@@ -10,8 +10,8 @@ from __future__ import annotations
 import argparse
 from unittest.mock import MagicMock, patch
 
-
 # -- argparse structure ------------------------------------------------
+
 
 class TestArgparseStructure:
     """Build the parser the same way main() does and verify structure."""
@@ -81,12 +81,20 @@ class TestArgparseStructure:
 
     def test_loot_add(self) -> None:
         p = self.build_parser()
-        args = p.parse_args([
-            "loot", "--env", "lab", "add",
-            "--host", "10.0.0.1",
-            "--username", "root",
-            "--secret", "toor",
-        ])
+        args = p.parse_args(
+            [
+                "loot",
+                "--env",
+                "lab",
+                "add",
+                "--host",
+                "10.0.0.1",
+                "--username",
+                "root",
+                "--secret",
+                "toor",
+            ]
+        )
         assert args.loot_action == "add"
         assert args.loot_host == "10.0.0.1"
         assert args.username == "root"
@@ -142,6 +150,7 @@ class TestArgparseStructure:
 
 # -- --no-color applies set_console -----------------------------------
 
+
 class TestNoColor:
     def test_set_console_called_when_no_color(self) -> None:
         """When --no-color is passed, cli.main() must call set_console()."""
@@ -152,6 +161,7 @@ class TestNoColor:
 
 
 # -- _init_framework wiring -------------------------------------------
+
 
 class TestInitFramework:
     @patch("empusa.cli.PluginManager")
@@ -194,6 +204,7 @@ class TestInitFramework:
 
 
 # -- Verbose + quiet mutual exclusion ---------------------------------
+
 
 class TestVerboseQuietExclusion:
     def test_both_flags_parsed(self) -> None:

@@ -9,29 +9,30 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+
 import pytest
 from rich.console import Console
 
 import empusa.cli_common as cli_common
 from empusa.cli_common import (
     CONFIG,
-    SESSION_ACTIONS,
-    sanitize_filename,
-    load_loot,
-    log_action,
-    which,
-    check_tool_exists,
-    set_console,
     HOOK_EVENTS,
     HOOKS_DIR,
+    IS_UNIX,
+    IS_WINDOWS,
     MODULES_DIR,
     PLUGINS_DIR,
-    IS_WINDOWS,
-    IS_UNIX,
+    SESSION_ACTIONS,
+    check_tool_exists,
+    load_loot,
+    log_action,
+    sanitize_filename,
+    set_console,
+    which,
 )
 
-
 # -- CONFIG defaults -------------------------------------------------
+
 
 class TestConfigDefaults:
     def test_required_keys_exist(self) -> None:
@@ -48,6 +49,7 @@ class TestConfigDefaults:
 
 # -- set_console -----------------------------------------------------
 
+
 class TestSetConsole:
     def test_set_console_replaces_module_global(self) -> None:
         original = cli_common.console
@@ -61,6 +63,7 @@ class TestSetConsole:
 
 # -- log_action ------------------------------------------------------
 
+
 class TestLogAction:
     def test_appends_to_session_actions(self) -> None:
         before = len(SESSION_ACTIONS)
@@ -73,6 +76,7 @@ class TestLogAction:
 
 
 # -- log helpers (quiet gating) -------------------------------------
+
 
 class TestLogHelpers:
     """Verify that quiet mode suppresses info/success/verbose but not error."""
@@ -102,18 +106,23 @@ class TestLogHelpers:
 
 # -- sanitize_filename -----------------------------------------------
 
+
 class TestSanitizeFilename:
-    @pytest.mark.parametrize("input_name,expected", [
-        ("normal.txt", "normal.txt"),
-        ('file<>:"/\\|?*.txt', "file_________.txt"),
-        ("hello world", "hello world"),
-        ("", ""),
-    ])
+    @pytest.mark.parametrize(
+        "input_name,expected",
+        [
+            ("normal.txt", "normal.txt"),
+            ('file<>:"/\\|?*.txt', "file_________.txt"),
+            ("hello world", "hello world"),
+            ("", ""),
+        ],
+    )
     def test_removes_invalid_chars(self, input_name: str, expected: str) -> None:
         assert sanitize_filename(input_name) == expected
 
 
 # -- load_loot -------------------------------------------------------
+
 
 class TestLoadLoot:
     def test_returns_empty_for_missing_file(self, tmp_path: Path) -> None:
@@ -140,6 +149,7 @@ class TestLoadLoot:
 
 # -- which / check_tool_exists --------------------------------------
 
+
 class TestWhich:
     def test_which_finds_python(self) -> None:
         # python should always be on PATH in a test environment
@@ -154,6 +164,7 @@ class TestWhich:
 
 # -- Path constants --------------------------------------------------
 
+
 class TestPathConstants:
     def test_hooks_dir_is_path(self) -> None:
         assert isinstance(HOOKS_DIR, Path)
@@ -167,14 +178,15 @@ class TestPathConstants:
 
 # -- HOOK_EVENTS -----------------------------------------------------
 
+
 class TestHookEvents:
     def test_contains_expected_events(self) -> None:
-        for evt in ("on_startup", "on_shutdown", "post_build", "post_scan",
-                     "on_loot_add", "on_report_generated"):
+        for evt in ("on_startup", "on_shutdown", "post_build", "post_scan", "on_loot_add", "on_report_generated"):
             assert evt in HOOK_EVENTS
 
 
 # -- Platform flags --------------------------------------------------
+
 
 class TestPlatformFlags:
     def test_flags_are_bool(self) -> None:

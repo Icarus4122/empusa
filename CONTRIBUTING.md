@@ -11,19 +11,25 @@ Thanks for your interest in Empusa! Here is how you can help.
    python -m venv .venv
    source .venv/bin/activate   # Linux/macOS
    .venv\Scripts\activate      # Windows
-   pip install -e .
+   pip install -e .[dev]
    ```
 
-3. Create a feature branch:
+3. Install pre-commit hooks:
+
+   ```bash
+   pre-commit install
+   ```
+
+4. Create a feature branch:
 
    ```bash
    git checkout -b feature/my-feature
    ```
 
-4. Identify the right module for your change:
+5. Identify the right module for your change:
 
    | Module | Purpose |
-   |--------|---------|
+   | -------- | --------- |
    | `empusa/cli_common.py` | Shared helpers, CONFIG, logging, path constants |
    | `empusa/cli_plugins.py` | Plugin UI (list, create, toggle, info, uninstall) |
    | `empusa/cli_hooks.py` | Hook UI and `_run_hooks` dispatch |
@@ -37,22 +43,22 @@ Thanks for your interest in Empusa! Here is how you can help.
    | `empusa/registry.py` | Capability registry |
    | `empusa/events.py` | Event name constants |
 
-5. Run the test suite:
+6. Run the test suite:
 
    ```bash
    pip install pytest
    python -m pytest
    ```
 
-6. Run Pylance or mypy to verify zero type errors.
-7. Submit a pull request with a clear description.
+7. Run Pylance or mypy to verify zero type errors.
+8. Submit a pull request with a clear description.
 
 ## Code Style
 
 - **Python 3.9+** - use `from __future__ import annotations` if needed.
 - **Type annotations** on every function signature.
 - **`rich`** for all terminal output - no bare `print()`.
-- Keep imports sorted: stdlib → third-party → local.
+- Keep imports sorted: stdlib -> third-party -> local.
 - Docstrings on public functions.
 - New domain logic goes in `cli_build.py` or a dedicated sub-module, not `cli.py`.
 - Functions needing framework access take keyword-only parameters (`run_hooks_fn`, `services`, `ask_env_fn`) rather than importing globals.
@@ -64,12 +70,12 @@ Empusa 2.0 ships with a hook system. To contribute a hook:
 1. Pick an event from the list below.
 2. Create a `.py` file with a `run(context: dict) -> None` function.
 3. Place it in the matching subdirectory under `empusa/hooks/`.
-4. Use **menu option 8 → Test-fire an event** to verify.
+4. Use **menu option 8 -> Test-fire an event** to verify.
 
 ### Available Events
 
 | Event | Fires When | Context Keys |
-|-------|-----------|--------------|
+| ------- | ----------- | -------------- |
 | `on_startup` | Empusa launches | `timestamp`, `session_env` |
 | `on_shutdown` | Clean exit / Ctrl+C | `killed_pids`, `cleaned_hooks` |
 | `pre_build` | Before env build starts | `env_name`, `ips` |

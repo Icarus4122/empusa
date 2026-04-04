@@ -104,27 +104,33 @@ class TestSummaryAndAllEntries:
 
 
 class TestConvenienceHelpers:
-    @pytest.mark.parametrize("method,category", [
-        ("register_analyzer", "analyzer"),
-        ("register_notifier", "notifier"),
-        ("register_report_section", "report_section"),
-        ("register_exporter", "exporter"),
-        ("register_tunnel_template", "tunnel_template"),
-        ("register_recon_strategy", "recon_strategy"),
-    ])
+    @pytest.mark.parametrize(
+        "method,category",
+        [
+            ("register_analyzer", "analyzer"),
+            ("register_notifier", "notifier"),
+            ("register_report_section", "report_section"),
+            ("register_exporter", "exporter"),
+            ("register_tunnel_template", "tunnel_template"),
+            ("register_recon_strategy", "recon_strategy"),
+        ],
+    )
     def test_register_convenience(self, method: str, category: str) -> None:
         reg = CapabilityRegistry()
         getattr(reg, method)("name", _handler, plugin_name="p")
         assert len(reg.get(category)) == 1
 
-    @pytest.mark.parametrize("method,category", [
-        ("get_analyzers", "analyzer"),
-        ("get_notifiers", "notifier"),
-        ("get_report_sections", "report_section"),
-        ("get_exporters", "exporter"),
-        ("get_tunnel_templates", "tunnel_template"),
-        ("get_recon_strategies", "recon_strategy"),
-    ])
+    @pytest.mark.parametrize(
+        "method,category",
+        [
+            ("get_analyzers", "analyzer"),
+            ("get_notifiers", "notifier"),
+            ("get_report_sections", "report_section"),
+            ("get_exporters", "exporter"),
+            ("get_tunnel_templates", "tunnel_template"),
+            ("get_recon_strategies", "recon_strategy"),
+        ],
+    )
     def test_get_convenience(self, method: str, category: str) -> None:
         reg = CapabilityRegistry()
         reg.register(category, "x", _handler)

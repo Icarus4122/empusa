@@ -123,7 +123,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
-- **CrackMapExec → NetExec** - All 3 references to `crackmapexec` replaced
+- **CrackMapExec -> NetExec** - All 3 references to `crackmapexec` replaced
   with `nxc` / NetExec to match current tooling.
 - **License** - Corrected metadata from MIT to GPL-3.0-or-later (matching
   the actual LICENSE file).

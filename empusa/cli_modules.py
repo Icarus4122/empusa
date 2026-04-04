@@ -14,6 +14,7 @@ Multi-language module compilation and management:
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import platform
@@ -23,25 +24,25 @@ import shutil
 import subprocess
 import time as _time_mod
 from pathlib import Path
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from rich.panel import Panel
-from rich.prompt import Prompt, Confirm
+from rich.prompt import Confirm, Prompt
 from rich.table import Table
 from rich.text import Text
 
 from empusa.cli_common import (
     CONFIG,
-    console,
     IS_WINDOWS,
     MODULES_DIR,
+    console,
     log_error,
     log_info,
     log_success,
     log_verbose,
-    render_screen,
     render_group_heading,
     render_kv,
+    render_screen,
     which,
 )
 
@@ -51,27 +52,27 @@ if TYPE_CHECKING:
 
 # -- Lookup tables ---------------------------------------------------
 
-COMPILER_MAP: Dict[str, List[str]] = {
-    "c":      ["gcc", "x86_64-w64-mingw32-gcc", "cc"],
-    "cpp":    ["g++", "x86_64-w64-mingw32-g++", "c++"],
+COMPILER_MAP: dict[str, list[str]] = {
+    "c": ["gcc", "x86_64-w64-mingw32-gcc", "cc"],
+    "cpp": ["g++", "x86_64-w64-mingw32-g++", "c++"],
     "csharp": ["dotnet", "mcs", "csc"],
-    "rust":   ["cargo", "rustc"],
-    "go":     ["go"],
-    "perl":   ["perl"],
-    "make":   ["make", "mingw32-make", "nmake"],
+    "rust": ["cargo", "rustc"],
+    "go": ["go"],
+    "perl": ["perl"],
+    "make": ["make", "mingw32-make", "nmake"],
 }
 
-DEFAULT_COMPILE_CMD: Dict[str, str] = {
-    "c":      "gcc {source} -o {output}",
-    "cpp":    "g++ {source} -o {output}",
+DEFAULT_COMPILE_CMD: dict[str, str] = {
+    "c": "gcc {source} -o {output}",
+    "cpp": "g++ {source} -o {output}",
     "csharp": "dotnet build {source_dir} -o {build_dir}",
-    "rust":   "cargo build --release --manifest-path {source_dir}/Cargo.toml",
-    "go":     "go build -o {output} {source}",
-    "perl":   "perl -c {source}",
-    "make":   "make -C {source_dir}",
+    "rust": "cargo build --release --manifest-path {source_dir}/Cargo.toml",
+    "go": "go build -o {output} {source}",
+    "perl": "perl -c {source}",
+    "make": "make -C {source_dir}",
 }
 
-LANGUAGE_EXTENSIONS: Dict[str, str] = {
+LANGUAGE_EXTENSIONS: dict[str, str] = {
     "c": ".c",
     "cpp": ".cpp",
     "csharp": ".cs",
@@ -87,25 +88,25 @@ INTERPRETED_LANGUAGES = {"perl", "python", "ruby", "shell"}
 
 # Interpreter commands used to build a "suggested invocation" hint for
 # script-type modules.  Compiled modules just use the artifact path.
-INTERPRETER_HINT: Dict[str, str] = {
-    "perl":   "perl",
+INTERPRETER_HINT: dict[str, str] = {
+    "perl": "perl",
     "python": "python3",
-    "ruby":   "ruby",
-    "shell":  "bash",
+    "ruby": "ruby",
+    "shell": "bash",
 }
 
 
 # -- Deterministic classification helpers ----------------------------
 
 
-def _classify_artifact(artifact: Optional[Path], lang: str) -> str:
+def _classify_artifact(artifact: Path | None, lang: str) -> str:
     """Deterministic artifact-kind classification.
 
     Rules (evaluated in strict order):
-    1. ``None`` or does not exist → ``"none"``
-    2. Is a directory             → ``"directory"``
-    3. Language ∈ INTERPRETED     → ``"script"``
-    4. Otherwise                  → ``"file"``  (compiled binary)
+    1. ``None`` or does not exist -> ``"none"``
+    2. Is a directory             -> ``"directory"``
+    3. Language ∈ INTERPRETED     -> ``"script"``
+    4. Otherwise                  -> ``"file"``  (compiled binary)
 
     This is the **only** call-site that assigns ``artifact_kind``.
     """
@@ -118,13 +119,13 @@ def _classify_artifact(artifact: Optional[Path], lang: str) -> str:
     return "file"
 
 
-def _artifact_display_name(artifact: Optional[Path], kind: str) -> str:
+def _artifact_display_name(artifact: Path | None, kind: str) -> str:
     """Human-friendly display name for an artifact.
 
-    - directory → ``<dirname>/``
-    - script    → ``<filename>``
-    - file      → ``<filename>``
-    - none      → ``"—"``
+    - directory -> ``<dirname>/``
+    - script    -> ``<filename>``
+    - file      -> ``<filename>``
+    - none      -> ``"—"``
     """
     if artifact is None or kind == "none":
         return "—"
@@ -133,15 +134,13 @@ def _artifact_display_name(artifact: Optional[Path], kind: str) -> str:
     return artifact.name
 
 
-def _artifact_freshness(
-    source_path: Path, artifact: Optional[Path]
-) -> str:
+def _artifact_freshness(source_path: Path, artifact: Path | None) -> str:
     """Compare source mtime vs artifact mtime.
 
     Returns:
-        ``"current"`` – artifact is at least as new as source.
-        ``"stale"``   – source has been modified after the last build.
-        ``"unknown"`` – not enough information to decide.
+        ``"current"`` - artifact is at least as new as source.
+        ``"stale"``   - source has been modified after the last build.
+        ``"unknown"`` - not enough information to decide.
     """
     if artifact is None or not artifact.exists():
         return "unknown"
@@ -182,7 +181,8 @@ def _open_directory(path: Path) -> bool:
         if platform.system() == "Darwin":
             result = subprocess.run(
                 ["open", str(path)],
-                check=False, capture_output=True,
+                check=False,
+                capture_output=True,
             )
             return result.returncode == 0
         # Linux / other POSIX
@@ -193,7 +193,8 @@ def _open_directory(path: Path) -> bool:
             return False
         result = subprocess.run(
             [opener, str(path)],
-            check=False, capture_output=True,
+            check=False,
+            capture_output=True,
         )
         return result.returncode == 0
     except Exception:
@@ -203,13 +204,13 @@ def _open_directory(path: Path) -> bool:
 # -- Compiler detection ----------------------------------------------
 
 
-def detect_compilers() -> Dict[str, List[str]]:
+def detect_compilers() -> dict[str, list[str]]:
     """Scan PATH for known compilers and return {language: [found binaries]}.
 
     Returns:
         Dict mapping language keys to a list of compiler binaries found.
     """
-    found: Dict[str, List[str]] = {}
+    found: dict[str, list[str]] = {}
     for lang, bins in COMPILER_MAP.items():
         available = [b for b in bins if which(b)]
         if available:
@@ -220,7 +221,7 @@ def detect_compilers() -> Dict[str, List[str]]:
 # -- Module discovery ------------------------------------------------
 
 
-def list_modules() -> List[Dict[str, Any]]:
+def list_modules() -> list[dict[str, Any]]:
     """Discover all modules under MODULES_DIR.
 
     Each module is a subdirectory containing a ``module.json`` manifest.
@@ -228,8 +229,8 @@ def list_modules() -> List[Dict[str, Any]]:
     Returns:
         List of parsed module manifest dicts with an added ``_path`` key.
     """
-    modules: List[Dict[str, Any]] = []
-    skipped: List[str] = []
+    modules: list[dict[str, Any]] = []
+    skipped: list[str] = []
     if not MODULES_DIR.exists():
         return modules
     for item in sorted(MODULES_DIR.iterdir()):
@@ -240,7 +241,7 @@ def list_modules() -> List[Dict[str, Any]]:
             # Not a module directory — skip silently
             continue
         try:
-            data: Dict[str, Any] = json.loads(manifest.read_text(encoding="utf-8"))
+            data: dict[str, Any] = json.loads(manifest.read_text(encoding="utf-8"))
         except json.JSONDecodeError as exc:
             # LOUD: surface parse failures in normal mode, not just verbose
             msg = f"[yellow]\u26a0[/yellow] Skipping [bold]{item.name}[/bold]: bad module.json — {exc}"
@@ -282,12 +283,9 @@ def list_modules() -> List[Dict[str, Any]]:
         if build_marker.exists():
             data["_compiled"] = True
             data["_build_stale"] = False
-        elif build_dir.exists() and any(
-            f for f in build_dir.iterdir()
-            if not f.name.startswith(".")
-        ):
+        elif build_dir.exists() and any(f for f in build_dir.iterdir() if not f.name.startswith(".")):
             data["_compiled"] = True
-            data["_build_stale"] = True  # No marker → possibly stale
+            data["_build_stale"] = True  # No marker -> possibly stale
         else:
             data["_compiled"] = False
             data["_build_stale"] = False
@@ -300,7 +298,7 @@ def list_modules() -> List[Dict[str, Any]]:
 # -- Artifact resolution ---------------------------------------------
 
 
-def get_module_artifact_info(mod: Dict[str, Any]) -> Dict[str, Any]:
+def get_module_artifact_info(mod: dict[str, Any]) -> dict[str, Any]:
     """Resolve artifact metadata for a module.
 
     Returns a dict with:
@@ -323,7 +321,7 @@ def get_module_artifact_info(mod: Dict[str, Any]) -> Dict[str, Any]:
     output_name = mod.get("output", source_path.stem if source_name else "")
 
     # -- Resolve primary artifact ------------------------------------
-    artifact: Optional[Path] = None
+    artifact: Path | None = None
     primary = build_dir / output_name if output_name else None
     if primary and primary.exists():
         artifact = primary
@@ -342,8 +340,8 @@ def get_module_artifact_info(mod: Dict[str, Any]) -> Dict[str, Any]:
     freshness = _artifact_freshness(source_path, artifact)
 
     # -- Size and mtime ----------------------------------------------
-    artifact_size: Optional[int] = None
-    last_modified: Optional[str] = None
+    artifact_size: int | None = None
+    last_modified: str | None = None
     if artifact is not None and artifact.exists() and not artifact.is_dir():
         try:
             stat = artifact.stat()
@@ -352,10 +350,8 @@ def get_module_artifact_info(mod: Dict[str, Any]) -> Dict[str, Any]:
         except OSError:
             pass
     elif artifact is not None and artifact.is_dir():
-        try:
+        with contextlib.suppress(OSError):
             last_modified = _dt.fromtimestamp(artifact.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S")
-        except OSError:
-            pass
 
     # -- Build command (shell-quoted) --------------------------------
     compile_cmd = mod.get("compile_cmd", DEFAULT_COMPILE_CMD.get(lang, ""))
@@ -377,10 +373,7 @@ def get_module_artifact_info(mod: Dict[str, Any]) -> Dict[str, Any]:
     # -- Checksum command (shell-quoted) -----------------------------
     if artifact and artifact.exists() and not artifact.is_dir():
         q_art = _shell_quote(str(artifact))
-        if IS_WINDOWS:
-            checksum_cmd = f"certutil -hashfile {q_art} SHA256"
-        else:
-            checksum_cmd = f"sha256sum {q_art}"
+        checksum_cmd = f"certutil -hashfile {q_art} SHA256" if IS_WINDOWS else f"sha256sum {q_art}"
     else:
         checksum_cmd = None
 
@@ -405,7 +398,7 @@ def get_module_artifact_info(mod: Dict[str, Any]) -> Dict[str, Any]:
 # -- Module info (sub-menu) -----------------------------------------
 
 
-def _format_size(size: Optional[int]) -> str:
+def _format_size(size: int | None) -> str:
     """Human-readable file size."""
     if size is None:
         return "-"
@@ -417,10 +410,10 @@ def _format_size(size: Optional[int]) -> str:
 
 
 def module_info(
-    mod: Dict[str, Any],
+    mod: dict[str, Any],
     *,
-    services: Optional[Services] = None,
-    run_hooks_fn: Optional[Any] = None,
+    services: Services | None = None,
+    run_hooks_fn: Any | None = None,
 ) -> None:
     """Display detailed module information with an action sub-menu.
 
@@ -437,7 +430,7 @@ def module_info(
     """
     _FRESHNESS_STYLE = {
         "current": "[green]✔ current[/green]",
-        "stale":   "[yellow]⚠ stale (source newer)[/yellow]",
+        "stale": "[yellow]⚠ stale (source newer)[/yellow]",
         "unknown": "[dim]unknown[/dim]",
     }
 
@@ -534,7 +527,7 @@ def module_info(
             # Show launch command (non-executing preview)
             render_group_heading("Launch Command Preview", "bold cyan")
             if art["launch_command"]:
-                lines_out: List[str] = []
+                lines_out: list[str] = []
                 lines_out.append("")
                 lines_out.append(f"  [bold]Artifact:[/bold]     {art['artifact_display_name']}")
                 lines_out.append(f"  [bold]Full path:[/bold]    {art['artifact_path']}")
@@ -542,11 +535,11 @@ def module_info(
                 lines_out.append(f"  [bold]Type:[/bold]         {art['artifact_kind']}")
                 lines_out.append(f"  [bold]Freshness:[/bold]    {_FRESHNESS_STYLE.get(art['artifact_freshness'], '?')}")
                 lines_out.append("")
-                lines_out.append(f"  [bold]Suggested invocation:[/bold]")
+                lines_out.append("  [bold]Suggested invocation:[/bold]")
                 lines_out.append(f"  [bold white]$[/bold white] {art['launch_command']}")
                 if art["checksum_command"]:
                     lines_out.append("")
-                    lines_out.append(f"  [bold]Verify checksum:[/bold]")
+                    lines_out.append("  [bold]Verify checksum:[/bold]")
                     lines_out.append(f"  [bold white]$[/bold white] {art['checksum_command']}")
                 lines_out.append("")
                 console.print("\n".join(lines_out))
@@ -613,8 +606,16 @@ def module_info(
                     tbl = Table(show_lines=True, border_style="yellow", min_width=50)
                     tbl.add_column("Field", style="bold white", min_width=14)
                     tbl.add_column("Value", style="green", overflow="fold")
-                    for key in ("status", "command", "exit_code", "timestamp",
-                                "duration_s", "artifact_path", "module_name", "language"):
+                    for key in (
+                        "status",
+                        "command",
+                        "exit_code",
+                        "timestamp",
+                        "duration_s",
+                        "artifact_path",
+                        "module_name",
+                        "language",
+                    ):
                         val = meta.get(key)
                         if val is not None:
                             style = ""
@@ -633,14 +634,14 @@ def module_info(
 # -- Module validation -----------------------------------------------
 
 
-def _validate_module(mod: Dict[str, Any]) -> List[Dict[str, str]]:
+def _validate_module(mod: dict[str, Any]) -> list[dict[str, str]]:
     """Run validation checks on a module.
 
     Returns a list of findings, each a dict with:
         ``level`` (``"pass"`` / ``"warning"`` / ``"error"`` / ``"info"``)
         ``message`` (human-readable description).
     """
-    findings: List[Dict[str, str]] = []
+    findings: list[dict[str, str]] = []
     mod_path = Path(mod["_path"])
     lang = mod.get("language", "")
 
@@ -669,10 +670,12 @@ def _validate_module(mod: Dict[str, Any]) -> List[Dict[str, str]]:
     # 4. Source extension matches declared language
     ext = LANGUAGE_EXTENSIONS.get(lang, "")
     if source_name and ext and not source_name.endswith(ext):
-        findings.append({
-            "level": "warning",
-            "message": f"Source '{source_name}' doesn't match expected extension '{ext}' for {lang}",
-        })
+        findings.append(
+            {
+                "level": "warning",
+                "message": f"Source '{source_name}' doesn't match expected extension '{ext}' for {lang}",
+            }
+        )
 
     # 5. Compiler availability
     compiler_bin = mod.get("compiler", "")
@@ -682,15 +685,19 @@ def _validate_module(mod: Dict[str, Any]) -> List[Dict[str, str]]:
         else:
             alt = detect_compilers().get(lang, [])
             if alt:
-                findings.append({
-                    "level": "warning",
-                    "message": f"Compiler '{compiler_bin}' not found; alternatives: {', '.join(alt)}",
-                })
+                findings.append(
+                    {
+                        "level": "warning",
+                        "message": f"Compiler '{compiler_bin}' not found; alternatives: {', '.join(alt)}",
+                    }
+                )
             else:
-                findings.append({
-                    "level": "error",
-                    "message": f"Compiler '{compiler_bin}' not found, no alternatives for '{lang}'",
-                })
+                findings.append(
+                    {
+                        "level": "error",
+                        "message": f"Compiler '{compiler_bin}' not found, no alternatives for '{lang}'",
+                    }
+                )
     elif lang in COMPILER_MAP:
         available = detect_compilers().get(lang, [])
         if available:
@@ -714,20 +721,26 @@ def _validate_module(mod: Dict[str, Any]) -> List[Dict[str, str]]:
     if target_os not in ("any", ""):
         current = "windows" if IS_WINDOWS else platform.system().lower()
         if target_os != current:
-            findings.append({
-                "level": "info",
-                "message": f"Target OS '{target_os}' differs from current '{current}' (cross-compile)",
-            })
+            findings.append(
+                {
+                    "level": "info",
+                    "message": f"Target OS '{target_os}' differs from current '{current}' (cross-compile)",
+                }
+            )
         else:
             findings.append({"level": "pass", "message": "Target OS matches current platform"})
 
     return findings
 
 
-def _render_validation(findings: List[Dict[str, str]]) -> None:
+def _render_validation(findings: list[dict[str, str]]) -> None:
     """Render validation findings as a styled list."""
-    _ICONS = {"pass": "[green]✔[/green]", "warning": "[yellow]⚠[/yellow]",
-              "error": "[red]✗[/red]", "info": "[cyan]ℹ[/cyan]"}
+    _ICONS = {
+        "pass": "[green]✔[/green]",
+        "warning": "[yellow]⚠[/yellow]",
+        "error": "[red]✗[/red]",
+        "info": "[cyan]ℹ[/cyan]",
+    }
     errors = sum(1 for f in findings if f["level"] == "error")
     warnings = sum(1 for f in findings if f["level"] == "warning")
     console.print()
@@ -746,35 +759,35 @@ def _render_validation(findings: List[Dict[str, str]]) -> None:
 # -- Compile ---------------------------------------------------------
 
 
-def _write_build_meta(build_dir: Path, data: Dict[str, Any]) -> None:
+def _write_build_meta(build_dir: Path, data: dict[str, Any]) -> None:
     """Persist build metadata to ``.build_meta.json`` in *build_dir*.
 
     Adds a UTC ``timestamp`` field automatically.  Errors are swallowed
     so a metadata-write failure never breaks the compile pipeline.
     """
+    import contextlib
     from datetime import datetime as _dt
+
     data.setdefault("timestamp", _dt.now().isoformat())
-    try:
+    with contextlib.suppress(OSError):
         (build_dir / ".build_meta.json").write_text(
             json.dumps(data, indent=2) + "\n",
             encoding="utf-8",
         )
-    except OSError:
-        pass  # non-critical
 
 
-def _find_alt_output(mod_path: Path, lang: str, output_name: str) -> List[Path]:
+def _find_alt_output(mod_path: Path, lang: str, output_name: str) -> list[Path]:
     """Return alternative locations where a build system may place its artifact.
 
     Different compilers/build-systems write output to different places:
-    - Rust/cargo  →  ``target/release/<name>`` or ``target/debug/<name>``
-    - Go          →  ``<name>`` in the module root (``go build`` default)
-    - dotnet      →  ``bin/Release/net*/<name>.dll`` or ``bin/Debug/net*/<name>.dll``
-    - make        →  module root (common convention)
+    - Rust/cargo  ->  ``target/release/<name>`` or ``target/debug/<name>``
+    - Go          ->  ``<name>`` in the module root (``go build`` default)
+    - dotnet      ->  ``bin/Release/net*/<name>.dll`` or ``bin/Debug/net*/<name>.dll``
+    - make        ->  module root (common convention)
 
     Returns a list of candidate paths (may or may not exist).
     """
-    candidates: List[Path] = []
+    candidates: list[Path] = []
     stem = Path(output_name).stem
 
     if lang == "rust":
@@ -803,9 +816,9 @@ def _find_alt_output(mod_path: Path, lang: str, output_name: str) -> List[Path]:
 
 
 def compile_module(
-    mod: Dict[str, Any],
-    services: Optional[Services] = None,
-    run_hooks_fn: Optional[Any] = None,
+    mod: dict[str, Any],
+    services: Services | None = None,
+    run_hooks_fn: Any | None = None,
 ) -> bool:
     """Compile a single module according to its manifest.
 
@@ -827,8 +840,7 @@ def compile_module(
     # Pre-flight: validate source file exists
     if not source_file.exists():
         log_error(
-            f"Source file not found: {source_file}\n"
-            f"  Check module.json \"source\" field for '{mod.get('name', '?')}'"
+            f"Source file not found: {source_file}\n  Check module.json \"source\" field for '{mod.get('name', '?')}'"
         )
         return False
 
@@ -859,10 +871,7 @@ def compile_module(
     elif not compiler_bin and lang in COMPILER_MAP:
         # No explicit compiler — verify at least one is on PATH
         if not detect_compilers().get(lang):
-            log_error(
-                f"No compiler found for '{lang}'. "
-                f"Checked: {', '.join(COMPILER_MAP.get(lang, []))}"
-            )
+            log_error(f"No compiler found for '{lang}'. Checked: {', '.join(COMPILER_MAP.get(lang, []))}")
             return False
 
     # Resolve placeholders
@@ -874,7 +883,7 @@ def compile_module(
     log_info(f"\n[bold]Compiling:[/bold] {mod.get('name', 'unknown')}")
     log_info(f"[dim]$ {compile_cmd}[/dim]")
 
-    if CONFIG['dry_run']:
+    if CONFIG["dry_run"]:
         log_info("[DRY RUN] Would execute the above command", "yellow")
         return True
 
@@ -882,14 +891,19 @@ def compile_module(
     try:
         if services is not None:
             result = services.runner.run(
-                compile_cmd, shell=True,
-                cwd=str(mod_path), timeout=120,
+                compile_cmd,
+                shell=True,
+                cwd=str(mod_path),
+                timeout=120,
             )
         else:
             result = subprocess.run(
-                compile_cmd, shell=True,
-                capture_output=True, text=True,
-                cwd=str(mod_path), timeout=120,
+                compile_cmd,
+                shell=True,
+                capture_output=True,
+                text=True,
+                cwd=str(mod_path),
+                timeout=120,
             )
         elapsed = round(_time_mod.monotonic() - t0, 2)
         if result.returncode == 0:
@@ -919,8 +933,7 @@ def compile_module(
                         artifact_found = True
                     else:
                         log_info(
-                            f"Artifact found at [dim]{found}[/dim], "
-                            f"copying to [dim]{output_path}[/dim]",
+                            f"Artifact found at [dim]{found}[/dim], copying to [dim]{output_path}[/dim]",
                             "yellow",
                         )
                         shutil.copy2(str(found), str(output_path))
@@ -928,10 +941,7 @@ def compile_module(
 
             # Last resort: build dir has non-hidden files (build
             # systems that write directly to build/).
-            if not artifact_found and any(
-                f for f in build_dir.iterdir()
-                if not f.name.startswith(".")
-            ):
+            if not artifact_found and any(f for f in build_dir.iterdir() if not f.name.startswith(".")):
                 log_verbose("Build directory contains output files", "yellow")
                 artifact_found = True
 
@@ -955,38 +965,45 @@ def compile_module(
                 log_verbose(f"stdout:\n{result.stdout.strip()}")
             # Write a build marker so status detection is reliable
             (build_dir / ".build_ok").write_text(
-                f"Built {mod.get('name', 'unknown')} at "
-                f"{__import__('datetime').datetime.now().isoformat()}\n",
+                f"Built {mod.get('name', 'unknown')} at {__import__('datetime').datetime.now().isoformat()}\n",
                 encoding="utf-8",
             )
             # Persist build metadata for "Last Build Result"
-            _write_build_meta(build_dir, {
-                "status": "success",
-                "command": compile_cmd,
-                "exit_code": result.returncode,
-                "duration_s": elapsed,
-                "artifact_path": str(output_path),
-                "module_name": mod.get("name", "unknown"),
-                "language": lang,
-            })
-            # Fire post_compile hook
-            if run_hooks_fn is not None:
-                run_hooks_fn("post_compile", {
+            _write_build_meta(
+                build_dir,
+                {
+                    "status": "success",
+                    "command": compile_cmd,
+                    "exit_code": result.returncode,
+                    "duration_s": elapsed,
+                    "artifact_path": str(output_path),
                     "module_name": mod.get("name", "unknown"),
                     "language": lang,
-                    "output_path": str(output_path),
-                    "build_dir": str(build_dir),
-                    "source": str(source_file),
-                })
+                },
+            )
+            # Fire post_compile hook
+            if run_hooks_fn is not None:
+                run_hooks_fn(
+                    "post_compile",
+                    {
+                        "module_name": mod.get("name", "unknown"),
+                        "language": lang,
+                        "output_path": str(output_path),
+                        "build_dir": str(build_dir),
+                        "source": str(source_file),
+                    },
+                )
             return True
         else:
             log_error(f"Build failed (exit code {result.returncode})")
             if result.stderr.strip():
-                console.print(Panel(
-                    Text(result.stderr.strip()),
-                    title="Compiler Output",
-                    border_style="red",
-                ))
+                console.print(
+                    Panel(
+                        Text(result.stderr.strip()),
+                        title="Compiler Output",
+                        border_style="red",
+                    )
+                )
             if result.stdout.strip():
                 console.print(result.stdout.strip(), markup=False, highlight=False)
             # Remove stale marker on failure
@@ -994,38 +1011,47 @@ def compile_module(
             if marker.exists():
                 marker.unlink()
             # Persist failure metadata
-            _write_build_meta(build_dir, {
-                "status": "failed",
-                "command": compile_cmd,
-                "exit_code": result.returncode,
-                "duration_s": elapsed,
-                "module_name": mod.get("name", "unknown"),
-                "language": lang,
-                "error": (result.stderr.strip()[:500]) if result.stderr else "",
-            })
+            _write_build_meta(
+                build_dir,
+                {
+                    "status": "failed",
+                    "command": compile_cmd,
+                    "exit_code": result.returncode,
+                    "duration_s": elapsed,
+                    "module_name": mod.get("name", "unknown"),
+                    "language": lang,
+                    "error": (result.stderr.strip()[:500]) if result.stderr else "",
+                },
+            )
             return False
     except subprocess.TimeoutExpired:
-        _write_build_meta(build_dir, {
-            "status": "timeout",
-            "command": compile_cmd,
-            "exit_code": -1,
-            "duration_s": round(_time_mod.monotonic() - t0, 2),
-            "module_name": mod.get("name", "unknown"),
-            "language": lang,
-            "error": "Build timed out (120s limit)",
-        })
+        _write_build_meta(
+            build_dir,
+            {
+                "status": "timeout",
+                "command": compile_cmd,
+                "exit_code": -1,
+                "duration_s": round(_time_mod.monotonic() - t0, 2),
+                "module_name": mod.get("name", "unknown"),
+                "language": lang,
+                "error": "Build timed out (120s limit)",
+            },
+        )
         log_error("Build timed out (120s limit)")
         return False
     except Exception as exc:
-        _write_build_meta(build_dir, {
-            "status": "crash",
-            "command": compile_cmd,
-            "exit_code": -1,
-            "duration_s": round(_time_mod.monotonic() - t0, 2),
-            "module_name": mod.get("name", "unknown"),
-            "language": lang,
-            "error": str(exc)[:500],
-        })
+        _write_build_meta(
+            build_dir,
+            {
+                "status": "crash",
+                "command": compile_cmd,
+                "exit_code": -1,
+                "duration_s": round(_time_mod.monotonic() - t0, 2),
+                "module_name": mod.get("name", "unknown"),
+                "language": lang,
+                "error": str(exc)[:500],
+            },
+        )
         log_error(f"Build error: {exc}")
         return False
 
@@ -1056,7 +1082,7 @@ def create_module_template(language: str, name: str) -> Path:
     default_compiler = compilers[0] if compilers else COMPILER_MAP.get(language, [""])[0]
 
     # Write module.json
-    manifest: Dict[str, str] = {
+    manifest: dict[str, str] = {
         "name": name,
         "language": language,
         "description": f"{name} - {language} module",
@@ -1069,70 +1095,70 @@ def create_module_template(language: str, name: str) -> Path:
     (mod_dir / "module.json").write_text(json.dumps(manifest, indent=4) + "\n", encoding="utf-8")
 
     # Write boilerplate source
-    templates: Dict[str, str] = {
+    templates: dict[str, str] = {
         "c": (
-            '#include <stdio.h>\n'
-            '#include <stdlib.h>\n\n'
-            '/*\n'
-            f' * {name} - C module for Empusa\n'
-            ' * Compile: gcc main.c -o build/{name}\n'
-            ' */\n\n'
-            'int main(int argc, char *argv[]) {\n'
+            "#include <stdio.h>\n"
+            "#include <stdlib.h>\n\n"
+            "/*\n"
+            f" * {name} - C module for Empusa\n"
+            " * Compile: gcc main.c -o build/{name}\n"
+            " */\n\n"
+            "int main(int argc, char *argv[]) {\n"
             f'    printf("[{name}] Module executed.\\n");\n'
-            '    // TODO: Implement module logic\n'
-            '    return 0;\n'
-            '}\n'
+            "    // TODO: Implement module logic\n"
+            "    return 0;\n"
+            "}\n"
         ),
         "cpp": (
-            '#include <iostream>\n'
-            '#include <string>\n\n'
-            '/*\n'
-            f' * {name} - C++ module for Empusa\n'
-            ' */\n\n'
-            'int main(int argc, char* argv[]) {\n'
+            "#include <iostream>\n"
+            "#include <string>\n\n"
+            "/*\n"
+            f" * {name} - C++ module for Empusa\n"
+            " */\n\n"
+            "int main(int argc, char* argv[]) {\n"
             f'    std::cout << "[{name}] Module executed." << std::endl;\n'
-            '    // TODO: Implement module logic\n'
-            '    return 0;\n'
-            '}\n'
+            "    // TODO: Implement module logic\n"
+            "    return 0;\n"
+            "}\n"
         ),
         "csharp": (
-            'using System;\n\n'
-            'namespace Empusa.Modules\n'
-            '{\n'
-            f'    /// <summary>{name} - C# module for Empusa</summary>\n'
-            f'    class {name.replace("-", "_").title().replace("_", "")}\n'
-            '    {\n'
-            '        static void Main(string[] args)\n'
-            '        {\n'
+            "using System;\n\n"
+            "namespace Empusa.Modules\n"
+            "{\n"
+            f"    /// <summary>{name} - C# module for Empusa</summary>\n"
+            f"    class {name.replace('-', '_').title().replace('_', '')}\n"
+            "    {\n"
+            "        static void Main(string[] args)\n"
+            "        {\n"
             f'            Console.WriteLine("[{name}] Module executed.");\n'
-            '            // TODO: Implement module logic\n'
-            '        }\n'
-            '    }\n'
-            '}\n'
+            "            // TODO: Implement module logic\n"
+            "        }\n"
+            "    }\n"
+            "}\n"
         ),
         "rust": (
-            f'//! {name} - Rust module for Empusa\n\n'
-            'fn main() {\n'
+            f"//! {name} - Rust module for Empusa\n\n"
+            "fn main() {\n"
             f'    println!("[{name}] Module executed.");\n'
-            '    // TODO: Implement module logic\n'
-            '}\n'
+            "    // TODO: Implement module logic\n"
+            "}\n"
         ),
         "go": (
-            'package main\n\n'
+            "package main\n\n"
             'import "fmt"\n\n'
-            f'// {name} - Go module for Empusa\n'
-            'func main() {\n'
+            f"// {name} - Go module for Empusa\n"
+            "func main() {\n"
             f'\tfmt.Println("[{name}] Module executed.")\n'
-            '\t// TODO: Implement module logic\n'
-            '}\n'
+            "\t// TODO: Implement module logic\n"
+            "}\n"
         ),
         "perl": (
-            '#!/usr/bin/env perl\n'
-            'use strict;\n'
-            'use warnings;\n\n'
-            f'# {name} - Perl module for Empusa\n\n'
+            "#!/usr/bin/env perl\n"
+            "use strict;\n"
+            "use warnings;\n\n"
+            f"# {name} - Perl module for Empusa\n\n"
             f'print "[{name}] Module executed.\\n";\n'
-            '# TODO: Implement module logic\n'
+            "# TODO: Implement module logic\n"
         ),
     }
 
@@ -1144,7 +1170,7 @@ def create_module_template(language: str, name: str) -> Path:
         cargo_toml = (
             f'[package]\nname = "{name}"\nversion = "0.1.0"\n'
             'edition = "2021"\n\n'
-            '[[bin]]\n'
+            "[[bin]]\n"
             f'name = "{name}"\n'
             f'path = "main.rs"\n'
         )
@@ -1154,17 +1180,17 @@ def create_module_template(language: str, name: str) -> Path:
     if language == "csharp":
         csproj = (
             '<Project Sdk="Microsoft.NET.Sdk">\n'
-            '  <PropertyGroup>\n'
-            '    <OutputType>Exe</OutputType>\n'
-            '    <TargetFramework>net8.0</TargetFramework>\n'
-            '  </PropertyGroup>\n'
-            '</Project>\n'
+            "  <PropertyGroup>\n"
+            "    <OutputType>Exe</OutputType>\n"
+            "    <TargetFramework>net8.0</TargetFramework>\n"
+            "  </PropertyGroup>\n"
+            "</Project>\n"
         )
         (mod_dir / f"{name}.csproj").write_text(csproj, encoding="utf-8")
 
     # For Go, create go.mod
     if language == "go":
-        go_mod = f'module {name}\n\ngo 1.21\n'
+        go_mod = f"module {name}\n\ngo 1.21\n"
         (mod_dir / "go.mod").write_text(go_mod, encoding="utf-8")
 
     return mod_dir
@@ -1175,10 +1201,10 @@ def create_module_template(language: str, name: str) -> Path:
 
 def _list_modules_render(
     *,
-    filter_language: Optional[str] = None,
-    filter_built: Optional[bool] = None,
-    filter_target_os: Optional[str] = None,
-    filter_keyword: Optional[str] = None,
+    filter_language: str | None = None,
+    filter_built: bool | None = None,
+    filter_target_os: str | None = None,
+    filter_keyword: str | None = None,
 ) -> Any:
     """Return the module list as a Rich Table, optionally filtered.
 
@@ -1198,16 +1224,13 @@ def _list_modules_render(
         filtered = [m for m in filtered if m.get("target_os", "any").lower() == filter_target_os.lower()]
     if filter_keyword:
         kw = filter_keyword.lower()
-        filtered = [
-            m for m in filtered
-            if kw in m.get("name", "").lower() or kw in m.get("description", "").lower()
-        ]
+        filtered = [m for m in filtered if kw in m.get("name", "").lower() or kw in m.get("description", "").lower()]
 
     if not filtered:
         return "[yellow]No modules match the current filter.[/yellow]"
 
     # Build active-filter subtitle
-    active: List[str] = []
+    active: list[str] = []
     if filter_language:
         active.append(f"lang={filter_language}")
     if filter_built is not None:
@@ -1289,8 +1312,8 @@ def _detect_compilers_render() -> Table:
 
 
 def module_workshop(
-    services: Optional[Services] = None,
-    run_hooks_fn: Optional[Any] = None,
+    services: Services | None = None,
+    run_hooks_fn: Any | None = None,
 ) -> None:
     """Interactive module workshop for compiling multi-language payloads (panel controller).
 
@@ -1308,7 +1331,7 @@ def module_workshop(
     content: Any = _list_modules_render()
 
     # Active filters (persisted across iterations)
-    _filters: Dict[str, Any] = {}
+    _filters: dict[str, Any] = {}
 
     while True:
         render_screen("Module Workshop")
@@ -1331,15 +1354,15 @@ def module_workshop(
         log_info("8. Filter Modules")
         log_info("0. Back to Main Menu")
 
-        choice = Prompt.ask("Select an option", choices=['0', '1', '2', '3', '4', '5', '6', '7', '8'])
+        choice = Prompt.ask("Select an option", choices=["0", "1", "2", "3", "4", "5", "6", "7", "8"])
 
-        if choice == '0':
+        if choice == "0":
             break
 
-        elif choice == '1':
+        elif choice == "1":
             content = _list_modules_render(**_filters)
 
-        elif choice == '2':
+        elif choice == "2":
             # Compile one module
             modules = list_modules()
             if not modules:
@@ -1361,7 +1384,7 @@ def module_workshop(
                 log_error("Please enter a valid number.")
             content = _list_modules_render()
 
-        elif choice == '3':
+        elif choice == "3":
             # Compile all modules
             modules = list_modules()
             if not modules:
@@ -1372,8 +1395,8 @@ def module_workshop(
             success = 0
             fail = 0
             skipped = 0
-            failed_names: List[str] = []
-            skipped_names: List[str] = []
+            failed_names: list[str] = []
+            skipped_names: list[str] = []
             for mod in modules:
                 mod_name = mod.get("name", mod.get("_dir_name", "?"))
                 # Pre-flight: skip modules that cannot possibly build
@@ -1399,10 +1422,8 @@ def module_workshop(
                     log_error(f"Unhandled error compiling {mod_name}: {exc}")
 
             lines = [
-                f"[bold]Compile All Results:[/bold]",
-                f"  [green]{success} succeeded[/green]  "
-                f"[red]{fail} failed[/red]  "
-                f"[yellow]{skipped} skipped[/yellow]",
+                "[bold]Compile All Results:[/bold]",
+                f"  [green]{success} succeeded[/green]  [red]{fail} failed[/red]  [yellow]{skipped} skipped[/yellow]",
             ]
             if failed_names:
                 lines.append("")
@@ -1416,7 +1437,7 @@ def module_workshop(
                     lines.append(f"  • {sn}")
             content = "\n".join(lines)
 
-        elif choice == '4':
+        elif choice == "4":
             # Create new module
             render_group_heading("Create Module", "bold yellow")
             supported = list(LANGUAGE_EXTENSIONS.keys()) + ["make"]
@@ -1424,10 +1445,7 @@ def module_workshop(
             log_info("Supported languages:")
             for i, lang in enumerate(supported, 1):
                 compilers = found_compilers.get(lang, [])
-                if compilers:
-                    tag = f"[green][installed: {', '.join(compilers)}][/green]"
-                else:
-                    tag = "[red][unavailable][/red]"
+                tag = f"[green][installed: {', '.join(compilers)}][/green]" if compilers else "[red][unavailable][/red]"
                 log_info(f"  {i}. {lang}  {tag}")
 
             try:
@@ -1441,20 +1459,19 @@ def module_workshop(
                 continue
 
             name = Prompt.ask("Module name (directory name)").strip()
-            if not name or not re.match(r'^[a-zA-Z0-9_-]+$', name):
+            if not name or not re.match(r"^[a-zA-Z0-9_-]+$", name):
                 log_error("Invalid name. Use only letters, numbers, hyphens, underscores.")
                 continue
 
-            if (MODULES_DIR / name).exists():
-                if not Confirm.ask(f"Module '{name}' already exists. Overwrite?"):
-                    continue
+            if (MODULES_DIR / name).exists() and not Confirm.ask(f"Module '{name}' already exists. Overwrite?"):
+                continue
 
             mod_dir = create_module_template(language, name)
             log_success(f"[+] Created module: {mod_dir}")
             log_info("Edit the source file, then use option 2 to compile.", "yellow")
             content = _list_modules_render()
 
-        elif choice == '5':
+        elif choice == "5":
             # Module info
             modules = list_modules()
             if not modules:
@@ -1484,10 +1501,10 @@ def module_workshop(
                 log_error("Please enter a valid number.")
             content = _list_modules_render(**_filters)
 
-        elif choice == '6':
+        elif choice == "6":
             content = _detect_compilers_render()
 
-        elif choice == '7':
+        elif choice == "7":
             # Open modules folder — with graceful degradation
             MODULES_DIR.mkdir(parents=True, exist_ok=True)
             if _open_directory(MODULES_DIR):
@@ -1498,7 +1515,7 @@ def module_workshop(
                 log_info(f"Path: {MODULES_DIR}", "cyan")
                 content = f"[yellow]Modules folder:[/yellow] {MODULES_DIR}"
 
-        elif choice == '8':
+        elif choice == "8":
             # Filter modules
             render_group_heading("Filter Modules", "bold yellow")
             log_info("  Leave blank to clear a filter.\n", "dim")

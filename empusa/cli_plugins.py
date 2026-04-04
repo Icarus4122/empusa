@@ -18,16 +18,16 @@ import json
 import os
 import platform
 import subprocess
-from typing import Any, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from rich.prompt import Prompt, Confirm
+from rich.prompt import Confirm, Prompt
 from rich.table import Table
 
 from empusa.cli_common import (
-    console,
     HOOK_EVENTS,
     IS_WINDOWS,
     PLUGINS_DIR,
+    console,
     log_error,
     log_info,
     log_success,
@@ -42,7 +42,7 @@ if TYPE_CHECKING:
 # -- Option 6: List / Status Plugins --------------------------------
 
 
-def list_plugins_render(plugin_manager: Optional[PluginManager]) -> Any:
+def list_plugins_render(plugin_manager: PluginManager | None) -> Any:
     """Return plugin status as a Rich Table (no console output).
 
     Used by the panel controller to populate the content area.
@@ -86,15 +86,12 @@ def list_plugins_render(plugin_manager: Optional[PluginManager]) -> Any:
             desc.description,
         )
 
-    table.caption = (
-        f"{plugin_manager.active_count()} active / "
-        f"{plugin_manager.plugin_count()} total"
-    )
+    table.caption = f"{plugin_manager.active_count()} active / {plugin_manager.plugin_count()} total"
     table.caption_style = "magenta"
     return table
 
 
-def list_plugins(plugin_manager: Optional[PluginManager]) -> None:
+def list_plugins(plugin_manager: PluginManager | None) -> None:
     """Display a status table of all discovered plugins."""
     if plugin_manager is None:
         log_error("Plugin system not initialized.")
@@ -136,8 +133,7 @@ def list_plugins(plugin_manager: Optional[PluginManager]) -> None:
 
     console.print(table)
     log_info(
-        f"\n{plugin_manager.active_count()} active / "
-        f"{plugin_manager.plugin_count()} total",
+        f"\n{plugin_manager.active_count()} active / {plugin_manager.plugin_count()} total",
         "magenta",
     )
 
@@ -145,7 +141,7 @@ def list_plugins(plugin_manager: Optional[PluginManager]) -> None:
 # -- Option 7: Create New Plugin ------------------------------------
 
 
-def create_plugin(plugin_manager: Optional[PluginManager]) -> None:
+def create_plugin(plugin_manager: PluginManager | None) -> None:
     """Interactive scaffold wizard for a new plugin."""
     if plugin_manager is None:
         log_error("Plugin system not initialized.")
@@ -163,7 +159,7 @@ def create_plugin(plugin_manager: Optional[PluginManager]) -> None:
     for i, evt in enumerate(HOOK_EVENTS, 1):
         log_info(f"  {i}. {evt}")
     evt_input = Prompt.ask("Event numbers", default="").strip()
-    selected_events: List[str] = []
+    selected_events: list[str] = []
     if evt_input:
         for part in evt_input.split(","):
             try:
@@ -198,7 +194,7 @@ def create_plugin(plugin_manager: Optional[PluginManager]) -> None:
 # -- Option 8: Enable / Disable Plugin ------------------------------
 
 
-def toggle_plugin(plugin_manager: Optional[PluginManager]) -> None:
+def toggle_plugin(plugin_manager: PluginManager | None) -> None:
     """Enable or disable a plugin, with blocked-state guard."""
     if plugin_manager is None:
         log_error("Plugin system not initialized.")
@@ -229,9 +225,7 @@ def toggle_plugin(plugin_manager: Optional[PluginManager]) -> None:
             d = plugins[pname]
             if not d.activatable:
                 log_error(
-                    f"Plugin {pname!r} is blocked "
-                    f"(unmet deps, cycle, or bad permissions). "
-                    f"Use option 9 for details."
+                    f"Plugin {pname!r} is blocked (unmet deps, cycle, or bad permissions). Use option 9 for details."
                 )
             elif d.enabled or d.activated:
                 if Confirm.ask(f"Disable {pname}?"):
@@ -250,7 +244,7 @@ def toggle_plugin(plugin_manager: Optional[PluginManager]) -> None:
 # -- Option 9: Plugin Info & Config ---------------------------------
 
 
-def plugin_info(plugin_manager: Optional[PluginManager]) -> None:
+def plugin_info(plugin_manager: PluginManager | None) -> None:
     """Show plugin detail table and offer config editing."""
     if plugin_manager is None:
         log_error("Plugin system not initialized.")
@@ -318,7 +312,7 @@ def plugin_info(plugin_manager: Optional[PluginManager]) -> None:
 # -- Option 10: Uninstall Plugin ------------------------------------
 
 
-def uninstall_plugin_ui(plugin_manager: Optional[PluginManager]) -> None:
+def uninstall_plugin_ui(plugin_manager: PluginManager | None) -> None:
     """Confirm and delete a plugin."""
     if plugin_manager is None:
         log_error("Plugin system not initialized.")
@@ -352,7 +346,7 @@ def uninstall_plugin_ui(plugin_manager: Optional[PluginManager]) -> None:
 # -- Option 11: Capability Registry ---------------------------------
 
 
-def show_registry_render(reg: Optional[CapabilityRegistry]) -> Any:
+def show_registry_render(reg: CapabilityRegistry | None) -> Any:
     """Return the capability registry as a Rich Table (no console output).
 
     Used by the panel controller to populate the content area.
@@ -365,8 +359,7 @@ def show_registry_render(reg: Optional[CapabilityRegistry]) -> Any:
 
     if total == 0:
         return (
-            "[yellow]Capability registry is empty.[/yellow]\n"
-            "[dim]Plugins register capabilities when activated.[/dim]"
+            "[yellow]Capability registry is empty.[/yellow]\n[dim]Plugins register capabilities when activated.[/dim]"
         )
 
     table = Table(
@@ -389,7 +382,7 @@ def show_registry_render(reg: Optional[CapabilityRegistry]) -> Any:
     return table
 
 
-def show_registry(reg: Optional[CapabilityRegistry]) -> None:
+def show_registry(reg: CapabilityRegistry | None) -> None:
     """Display a table of all registered capabilities."""
     if reg is None:
         log_error("Registry not available.")
