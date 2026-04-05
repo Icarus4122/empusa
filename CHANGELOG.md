@@ -5,6 +5,28 @@ All notable changes to Empusa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.2.1] - 2026-04-05
+
+### Added
+
+- **`make_event()` factory** - New canonical constructor in `events.py` that
+  resolves event names through `EVENT_MAP`, filters kwargs to valid dataclass
+  fields, and returns typed `EmpusaEvent` instances.
+- **Contract-pinning test suites** - `TestWorkspaceConstantsPinned`,
+  `TestEventPayloadSchemasPinned`, `TestEmitLegacyCanonical`,
+  `TestLayoutDivergencePinned`, and `TestBuildEventPayloadsPinned` lock down
+  workspace constants, all 17 event field sets, bus canonicalization, and
+  workspace-vs-standalone layout separation.
+
+### Changed
+
+- **`bus.emit_legacy()`** - Now delegates to `make_event()` internally,
+  confining canonicalization to the bus layer while preserving the `(str, dict)`
+  contract at all external boundaries.
+- **CLI import cleanup** - Removed unused `make_event` / `EmpusaEvent` imports
+  from `cli_workspace`, `cli_scan`, `cli_reports`, `cli_loot`, `cli_modules`,
+  `cli_hooks`, `cli`, and `services`.
+
 ## [2.2.0] - 2026-03-30
 
 ### Added

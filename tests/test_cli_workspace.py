@@ -137,8 +137,7 @@ class TestCmdWorkspaceInit:
         args = _make_args(name="box1", profile="htb", root=str(tmp_path))
         cmd_workspace_init(args, emit_fn=emit)
         post = next(e for e in captured if e[0] == "post_workspace_init")
-        required = {"workspace_name", "workspace_root", "workspace_path",
-                     "profile", "set_active", "created_paths"}
+        required = {"workspace_name", "workspace_root", "workspace_path", "profile", "set_active", "created_paths"}
         assert required <= set(post[1].keys())
 
     def test_htb_profile_dirs_all_created(self, tmp_path: Path) -> None:

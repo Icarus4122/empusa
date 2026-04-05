@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "empusa"
-version = "2.2.0"
+version = "2.2.1"
 description = "Shape-shifting recon & exploitation framework workflows."
 authors = [{name = "Amos Parker"}]
 readme = "README.md"

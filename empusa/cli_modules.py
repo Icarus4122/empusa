@@ -983,13 +983,16 @@ def compile_module(
             )
             # Fire post_compile hook
             if run_hooks_fn is not None:
-                run_hooks_fn("post_compile", {
-                    "module_name": mod.get("name", "unknown"),
-                    "language": lang,
-                    "output_path": str(output_path),
-                    "build_dir": str(build_dir),
-                    "source": str(source_file),
-                })
+                run_hooks_fn(
+                    "post_compile",
+                    {
+                        "module_name": mod.get("name", "unknown"),
+                        "language": lang,
+                        "output_path": str(output_path),
+                        "build_dir": str(build_dir),
+                        "source": str(source_file),
+                    },
+                )
             return True
         else:
             log_error(f"Build failed (exit code {result.returncode})")

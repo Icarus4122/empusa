@@ -203,9 +203,12 @@ class TestBuildEventPayloadsPinned:
         from empusa.cli_scan import build_env
 
         captured: list[tuple[str, dict[str, Any]]] = []
-        build_env("box1", ["10.10.10.1", "10.10.10.2"],
-                  run_hooks_fn=lambda e, c: captured.append((e, c)),
-                  workspace_path=htb_ws)
+        build_env(
+            "box1",
+            ["10.10.10.1", "10.10.10.2"],
+            run_hooks_fn=lambda e, c: captured.append((e, c)),
+            workspace_path=htb_ws,
+        )
         pre = next(e for e in captured if e[0] == "pre_build")
         assert "ips" in pre[1]
         assert pre[1]["ips"] == ["10.10.10.1", "10.10.10.2"]
@@ -218,9 +221,7 @@ class TestBuildEventPayloadsPinned:
         from empusa.cli_scan import build_env
 
         captured: list[tuple[str, dict[str, Any]]] = []
-        build_env("box1", ["10.10.10.1"],
-                  run_hooks_fn=lambda e, c: captured.append((e, c)),
-                  workspace_path=htb_ws)
+        build_env("box1", ["10.10.10.1"], run_hooks_fn=lambda e, c: captured.append((e, c)), workspace_path=htb_ws)
         post = next(e for e in captured if e[0] == "post_build")
         required = {"env_name", "env_path", "ips"}
         assert required <= set(post[1].keys())
@@ -235,8 +236,7 @@ class TestBuildEventPayloadsPinned:
 
         monkeypatch.chdir(tmp_path)
         captured: list[tuple[str, dict[str, Any]]] = []
-        build_env("flat", ["10.10.10.1"],
-                  run_hooks_fn=lambda e, c: captured.append((e, c)))
+        build_env("flat", ["10.10.10.1"], run_hooks_fn=lambda e, c: captured.append((e, c)))
         pre = next(e for e in captured if e[0] == "pre_build")
         assert "ips" in pre[1]
         assert pre[1]["ips"] == ["10.10.10.1"]

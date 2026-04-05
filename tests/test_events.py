@@ -239,16 +239,28 @@ class TestWorkspaceConstantsPinned:
         from empusa.workspace import PROFILES
 
         assert PROFILES["htb"]["dirs"] == [
-            "notes", "scans", "web", "creds", "loot",
-            "exploits", "screenshots", "reports", "logs",
+            "notes",
+            "scans",
+            "web",
+            "creds",
+            "loot",
+            "exploits",
+            "screenshots",
+            "reports",
+            "logs",
         ]
 
     def test_htb_profile_templates_pinned(self) -> None:
         from empusa.workspace import PROFILES
 
         assert PROFILES["htb"]["templates"] == [
-            "engagement.md", "target.md", "recon.md", "services.md",
-            "finding.md", "privesc.md", "web.md",
+            "engagement.md",
+            "target.md",
+            "recon.md",
+            "services.md",
+            "finding.md",
+            "privesc.md",
+            "web.md",
         ]
 
 
@@ -264,49 +276,75 @@ class TestEventPayloadSchemasPinned:
         return {f.name for f in dc_fields(cls)}
 
     def test_pre_workspace_init_fields(self) -> None:
-        expected = {"event", "timestamp", "session_env",
-                    "workspace_name", "workspace_root", "profile", "set_active"}
+        expected = {"event", "timestamp", "session_env", "workspace_name", "workspace_root", "profile", "set_active"}
         assert self._field_names(PreWorkspaceInitEvent) == expected
 
     def test_post_workspace_init_fields(self) -> None:
-        expected = {"event", "timestamp", "session_env",
-                    "workspace_name", "workspace_root", "workspace_path",
-                    "profile", "set_active", "created_paths"}
+        expected = {
+            "event",
+            "timestamp",
+            "session_env",
+            "workspace_name",
+            "workspace_root",
+            "workspace_path",
+            "profile",
+            "set_active",
+            "created_paths",
+        }
         assert self._field_names(PostWorkspaceInitEvent) == expected
 
     def test_workspace_select_fields(self) -> None:
-        expected = {"event", "timestamp", "session_env",
-                    "workspace_name", "workspace_root", "workspace_path", "profile"}
+        expected = {
+            "event",
+            "timestamp",
+            "session_env",
+            "workspace_name",
+            "workspace_root",
+            "workspace_path",
+            "profile",
+        }
         assert self._field_names(WorkspaceSelectEvent) == expected
 
     def test_pre_build_fields(self) -> None:
-        expected = {"event", "timestamp", "session_env",
-                    "env_name", "ips"}
+        expected = {"event", "timestamp", "session_env", "env_name", "ips"}
         assert self._field_names(PreBuildEvent) == expected
 
     def test_post_build_fields(self) -> None:
-        expected = {"event", "timestamp", "session_env",
-                    "env_name", "env_path", "ips"}
+        expected = {"event", "timestamp", "session_env", "env_name", "env_path", "ips"}
         assert self._field_names(PostBuildEvent) == expected
 
     def test_pre_report_write_fields(self) -> None:
-        expected = {"event", "timestamp", "session_env",
-                    "env_name", "env_path", "standalone_count", "ad_count"}
+        expected = {"event", "timestamp", "session_env", "env_name", "env_path", "standalone_count", "ad_count"}
         assert self._field_names(PreReportWriteEvent) == expected
 
     def test_report_generated_fields(self) -> None:
-        expected = {"event", "timestamp", "session_env",
-                    "report_path", "env_name", "env_path",
-                    "standalone_count", "ad_count"}
+        expected = {
+            "event",
+            "timestamp",
+            "session_env",
+            "report_path",
+            "env_name",
+            "env_path",
+            "standalone_count",
+            "ad_count",
+        }
         assert self._field_names(ReportGeneratedEvent) == expected
 
     def test_post_scan_fields_pinned(self) -> None:
-        expected = {"event", "timestamp", "session_env",
-                    "ip", "scan_output", "os_type", "ports_dir"}
+        expected = {"event", "timestamp", "session_env", "ip", "scan_output", "os_type", "ports_dir"}
         assert self._field_names(PostScanEvent) == expected
 
     def test_loot_added_fields_pinned(self) -> None:
-        expected = {"event", "timestamp", "session_env",
-                    "host", "cred_type", "username", "secret",
-                    "source", "env_name", "env_path"}
+        expected = {
+            "event",
+            "timestamp",
+            "session_env",
+            "host",
+            "cred_type",
+            "username",
+            "secret",
+            "source",
+            "env_name",
+            "env_path",
+        }
         assert self._field_names(LootAddedEvent) == expected

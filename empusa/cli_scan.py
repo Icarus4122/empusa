@@ -241,10 +241,13 @@ def run_nmap(
         return sorted(ports, key=int)
 
     if run_hooks_fn is not None:
-        run_hooks_fn("pre_scan_host", {
-            "ip": ip,
-            "env_name": CONFIG.get("session_env", ""),
-        })
+        run_hooks_fn(
+            "pre_scan_host",
+            {
+                "ip": ip,
+                "env_name": CONFIG.get("session_env", ""),
+            },
+        )
 
     log_info(f"[*] Scanning (fast discovery) on {ip}...")
 
@@ -386,12 +389,15 @@ def run_nmap(
             log_verbose(f"Warning: Could not write port file {port_file_path}: {e}", "yellow")
 
     if run_hooks_fn is not None:
-        run_hooks_fn("post_scan", {
-            "ip": ip,
-            "scan_output": str(output_file),
-            "os_type": detect_os(output_file),
-            "ports_dir": str(ports_dir),
-        })
+        run_hooks_fn(
+            "post_scan",
+            {
+                "ip": ip,
+                "scan_output": str(output_file),
+                "os_type": detect_os(output_file),
+                "ports_dir": str(ports_dir),
+            },
+        )
 
     return ip, output_file
 
@@ -621,10 +627,13 @@ def build_env(
         configure_shell_history(layout.commands_log)
 
     if run_hooks_fn is not None:
-        run_hooks_fn("pre_build", {
-            "env_name": env_name,
-            "ips": valid_ips,
-        })
+        run_hooks_fn(
+            "pre_build",
+            {
+                "env_name": env_name,
+                "ips": valid_ips,
+            },
+        )
 
     log_info("\n[*] Starting threaded Nmap scanning...", "bold green")
     scan_results: dict[str, Path] = {}
@@ -676,10 +685,13 @@ def build_env(
         log_verbose(f"Warning: Could not write to command log: {e}", "yellow")
 
     if run_hooks_fn is not None:
-        run_hooks_fn("post_build", {
-            "env_name": env_name,
-            "env_path": str(layout.base_dir),
-            "ips": valid_ips,
-        })
+        run_hooks_fn(
+            "post_build",
+            {
+                "env_name": env_name,
+                "env_path": str(layout.base_dir),
+                "ips": valid_ips,
+            },
+        )
 
     return layout
