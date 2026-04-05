@@ -35,7 +35,6 @@ from empusa.cli_common import (
     SESSION_ACTIONS,
     clear_screen,
     console,
-    has_active_workspace,
     load_loot,
     log_action,
     log_error,

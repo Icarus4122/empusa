@@ -22,7 +22,6 @@ from pathlib import Path
 import pytest
 
 from empusa.workspace import (
-    BuildLayout,
     DEFAULT_WORKSPACE_ROOT,
     METADATA_FILENAME,
     PROFILES,
@@ -72,7 +71,7 @@ class TestSanitize:
 
 class TestCreateWorkspaceHtb:
     def test_creates_all_profile_dirs(self, tmp_path: Path) -> None:
-        result = create_workspace("target1", profile="htb", root=tmp_path)
+        create_workspace("target1", profile="htb", root=tmp_path)
         ws = tmp_path / "target1"
         assert ws.is_dir()
         for d in PROFILES["htb"]["dirs"]:
@@ -88,7 +87,7 @@ class TestCreateWorkspaceHtb:
         assert result.metadata_path != ""
 
     def test_metadata_written(self, tmp_path: Path) -> None:
-        result = create_workspace("target1", profile="htb", root=tmp_path)
+        create_workspace("target1", profile="htb", root=tmp_path)
         meta_path = tmp_path / "target1" / METADATA_FILENAME
         assert meta_path.is_file()
         meta = json.loads(meta_path.read_text(encoding="utf-8"))
@@ -111,7 +110,7 @@ class TestCreateWorkspaceHtb:
 
     def test_template_variable_substitution(self, tmp_path: Path) -> None:
         tpl = _make_templates_dir(tmp_path, ["recon.md"])
-        result = create_workspace(
+        create_workspace(
             "mybox",
             profile="htb",
             root=tmp_path,
@@ -136,7 +135,7 @@ class TestCreateWorkspaceHtb:
 
 class TestCreateWorkspaceResearch:
     def test_creates_research_dirs(self, tmp_path: Path) -> None:
-        result = create_workspace("topic1", profile="research", root=tmp_path)
+        create_workspace("topic1", profile="research", root=tmp_path)
         ws = tmp_path / "topic1"
         for d in PROFILES["research"]["dirs"]:
             assert (ws / d).is_dir(), f"missing subdir: {d}"
@@ -148,7 +147,7 @@ class TestCreateWorkspaceResearch:
         assert result.templates_missing == []
 
     def test_research_no_extra_dirs(self, tmp_path: Path) -> None:
-        result = create_workspace("topic1", profile="research", root=tmp_path)
+        create_workspace("topic1", profile="research", root=tmp_path)
         ws = tmp_path / "topic1"
         # Only profile dirs + metadata file should exist
         children = {p.name for p in ws.iterdir()}
@@ -225,7 +224,7 @@ class TestCreateWorkspaceEdgeCases:
             assert m not in result.templates_seeded
 
     def test_uses_default_root_constant(self) -> None:
-        assert DEFAULT_WORKSPACE_ROOT == Path("/opt/lab/workspaces")
+        assert Path("/opt/lab/workspaces") == DEFAULT_WORKSPACE_ROOT
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -399,7 +398,7 @@ class TestBuildLayoutWorkspace:
         (ws / "logs").mkdir()
 
         layout = ensure_build_layout("myenv", ["10.10.10.1", "10.10.10.2"], workspace_path=ws)
-        for ip, nmap_dir in layout.ip_nmap_dirs.items():
+        for _ip, nmap_dir in layout.ip_nmap_dirs.items():
             assert nmap_dir.is_dir()
             # The nmap dir should be under scans/
             assert str(nmap_dir).startswith(str(ws / "scans"))

@@ -26,7 +26,6 @@ from empusa.cli_common import (
     CONFIG,
     console,
     get_active_workspace,
-    has_active_workspace,
     log_action,
     log_error,
     log_info,

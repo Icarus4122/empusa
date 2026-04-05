@@ -13,21 +13,20 @@ argparse.Namespace objects — no interactive menus, no Docker.
 from __future__ import annotations
 
 import argparse
-import json
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
 import pytest
 
-from empusa.cli_common import CONFIG, clear_active_workspace, get_active_workspace, has_active_workspace
+from empusa.cli_common import CONFIG, clear_active_workspace, get_active_workspace
 from empusa.cli_workspace import (
     cmd_workspace_init,
     cmd_workspace_list,
     cmd_workspace_select,
     cmd_workspace_status,
 )
-from empusa.workspace import METADATA_FILENAME, PROFILES
+from empusa.workspace import PROFILES
 
 
 # ── helpers ──────────────────────────────────────────────────────────
@@ -208,7 +207,7 @@ class TestCmdWorkspaceList:
 class TestCmdWorkspaceSelect:
     def _setup_workspace(self, tmp_path: Path, name: str = "ws1", profile: str = "htb") -> Path:
         """Create a workspace and return its path."""
-        emit = lambda e, c: None
+        def emit(e: str, c: dict[str, Any]) -> None: ...
         cmd_workspace_init(
             _make_args(name=name, profile=profile, root=str(tmp_path)),
             emit_fn=emit,
@@ -218,7 +217,7 @@ class TestCmdWorkspaceSelect:
     def test_select_success(self, tmp_path: Path) -> None:
         self._setup_workspace(tmp_path, "ws1", "htb")
         captured: list[tuple[str, dict[str, Any]]] = []
-        emit = lambda e, c: captured.append((e, c))
+        def emit(e: str, c: dict[str, Any]) -> None: captured.append((e, c))
 
         args = _make_args(name="ws1", root=str(tmp_path))
         rc = cmd_workspace_select(args, emit_fn=emit)
@@ -230,7 +229,7 @@ class TestCmdWorkspaceSelect:
     def test_select_emits_event(self, tmp_path: Path) -> None:
         self._setup_workspace(tmp_path, "ws1")
         captured: list[tuple[str, dict[str, Any]]] = []
-        emit = lambda e, c: captured.append((e, c))
+        def emit(e: str, c: dict[str, Any]) -> None: captured.append((e, c))
 
         cmd_workspace_select(_make_args(name="ws1", root=str(tmp_path)), emit_fn=emit)
         event_names = [e[0] for e in captured]
@@ -239,7 +238,7 @@ class TestCmdWorkspaceSelect:
     def test_select_event_payload(self, tmp_path: Path) -> None:
         self._setup_workspace(tmp_path, "ws1", "htb")
         captured: list[tuple[str, dict[str, Any]]] = []
-        emit = lambda e, c: captured.append((e, c))
+        def emit(e: str, c: dict[str, Any]) -> None: captured.append((e, c))
 
         cmd_workspace_select(_make_args(name="ws1", root=str(tmp_path)), emit_fn=emit)
         evt = next(e for e in captured if e[0] == "on_workspace_select")
@@ -248,7 +247,7 @@ class TestCmdWorkspaceSelect:
         assert evt[1]["workspace_path"] == str(tmp_path / "ws1")
 
     def test_select_missing_workspace(self, tmp_path: Path) -> None:
-        emit = lambda e, c: None
+        def emit(e: str, c: dict[str, Any]) -> None: ...
         args = _make_args(name="nope", root=str(tmp_path))
         rc = cmd_workspace_select(args, emit_fn=emit)
         assert rc == 1
@@ -256,7 +255,7 @@ class TestCmdWorkspaceSelect:
     def test_select_missing_metadata(self, tmp_path: Path) -> None:
         # Dir exists but no metadata file
         (tmp_path / "nomd").mkdir()
-        emit = lambda e, c: None
+        def emit(e: str, c: dict[str, Any]) -> None: ...
         args = _make_args(name="nomd", root=str(tmp_path))
         rc = cmd_workspace_select(args, emit_fn=emit)
         assert rc == 1
@@ -269,7 +268,7 @@ class TestCmdWorkspaceSelect:
 
 class TestCmdWorkspaceStatus:
     def _setup_workspace(self, tmp_path: Path, name: str = "ws1", profile: str = "htb") -> None:
-        emit = lambda e, c: None
+        def emit(e: str, c: dict[str, Any]) -> None: ...
         cmd_workspace_init(
             _make_args(name=name, profile=profile, root=str(tmp_path)),
             emit_fn=emit,
@@ -310,7 +309,7 @@ class TestCmdWorkspaceStatus:
     def test_status_shows_active_marker(self, mock_console: Any, tmp_path: Path) -> None:
         self._setup_workspace(tmp_path, "ws1", "htb")
         # Select the workspace to make it active
-        emit = lambda e, c: None
+        def emit(e: str, c: dict[str, Any]) -> None: ...
         cmd_workspace_select(_make_args(name="ws1", root=str(tmp_path)), emit_fn=emit)
 
         args = _make_args(name="ws1", root=str(tmp_path))

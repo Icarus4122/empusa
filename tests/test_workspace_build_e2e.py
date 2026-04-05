@@ -9,18 +9,16 @@ All nmap/OS-detection calls are mocked; no Docker or network required.
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
 from empusa.cli_common import CONFIG, clear_active_workspace, set_active_workspace
 from empusa.workspace import (
-    METADATA_FILENAME,
-    PROFILES,
     BuildLayout,
+    METADATA_FILENAME,
     create_workspace,
     ensure_build_layout,
     load_metadata,
@@ -328,7 +326,7 @@ class TestBuildEnvStandalone:
         monkeypatch.chdir(tmp_path)
         layout = build_env("legacyenv", ["10.10.10.1", "10.10.10.2"])
         assert layout is not None
-        for ip, nmap_dir in layout.ip_nmap_dirs.items():
+        for _ip, nmap_dir in layout.ip_nmap_dirs.items():
             assert nmap_dir.parent.parent == layout.base_dir
 
 
