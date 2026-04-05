@@ -28,6 +28,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, cast
 
 if TYPE_CHECKING:
+    import types
+
     from empusa.bus import EventBus
     from empusa.events import EmpusaEvent
     from empusa.registry import CapabilityRegistry
@@ -57,7 +59,7 @@ DEFAULT_MANIFEST: dict[str, Any] = {
 VALID_PERMISSIONS = frozenset(
     {
         "network",  # outbound HTTP/socket access
-        "filesystem",  # read/write outside the env dir
+        "filesystem",  # read/write outside the env di
         "subprocess",  # spawn child processes
         "loot_read",  # read loot entries
         "loot_write",  # append loot entries
@@ -104,7 +106,7 @@ class PluginDescriptor:
         self.manifest_path: Path = plugin_dir / "manifest.json"
         self.config_path: Path = plugin_dir / "config.json"
         self.config: dict[str, Any] = {}
-        self.module: Any = None
+        self.module: types.ModuleType | None = None
         self.activated: bool = False
         self.activatable: bool = True  # set False by resolve_dependencies / permission check
 
@@ -454,7 +456,7 @@ class PluginManager:
     def refresh(self) -> list[str]:
         """Full lifecycle refresh: deactivate -> discover -> resolve -> activate.
 
-        This is the **safe** way to re-sync in-memory plugin state after
+        This is the **safe** way to re-sync in-memory plugin state afte
         any on-disk change (create, uninstall, manifest edit, config
         change).  UI code should call this instead of bare ``discover()``.
 

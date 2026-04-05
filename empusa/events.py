@@ -8,6 +8,8 @@ Legacy hooks still receive ``dict`` via the bus adapter layer;
 new-style plugins receive the dataclass instance directly.
 """
 
+from __future__ import annotations
+
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -59,8 +61,8 @@ class ShutdownEvent(EmpusaEvent):
     """Fired during graceful shutdown."""
 
     event: str = "on_shutdown"
-    killed_pids: list[str] = field(default_factory=lambda: cast(list[str], []))
-    cleaned_hooks: list[str] = field(default_factory=lambda: cast(list[str], []))
+    killed_pids: list[str] = field(default_factory=list)
+    cleaned_hooks: list[str] = field(default_factory=list)
 
 
 # -- Environment ----------------------------------------------------
@@ -74,13 +76,65 @@ class EnvSelectEvent(EmpusaEvent):
     env_name: str = ""
 
 
+# -- Workspace Lifecycle --------------------------------------------
+
+
+@dataclass
+class PreWorkspaceInitEvent(EmpusaEvent):
+    """Fired *before* a new workspace directory tree is created.
+
+    Plugins can inspect or override defaults (e.g. inject extra
+    sub-directories, validate naming conventions) before any I/O.
+    """
+
+    event: str = "pre_workspace_init"
+    workspace_name: str = ""
+    workspace_root: str = ""
+    profile: str = ""
+    set_active: bool = False
+
+
+@dataclass
+class PostWorkspaceInitEvent(EmpusaEvent):
+    """Fired *after* a workspace has been fully scaffolded on disk.
+
+    Carries the resolved path and the list of directories / files
+    that were actually created so plugins can post-process (e.g.
+    seed git repos, copy extra templates, register the workspace).
+    """
+
+    event: str = "post_workspace_init"
+    workspace_name: str = ""
+    workspace_root: str = ""
+    workspace_path: str = ""
+    profile: str = ""
+    set_active: bool = False
+    created_paths: list[str] = field(default_factory=list)
+
+
+@dataclass
+class WorkspaceSelectEvent(EmpusaEvent):
+    """Fired when an existing workspace is activated / switched to.
+
+    Distinct from ``EnvSelectEvent`` which covers the broade
+    environment concept; this event is specific to workspace-level
+    context (profile, workspace root, resolved path).
+    """
+
+    event: str = "on_workspace_select"
+    workspace_name: str = ""
+    workspace_root: str = ""
+    workspace_path: str = ""
+    profile: str = ""
+
+
 @dataclass
 class PreBuildEvent(EmpusaEvent):
     """Fired *before* an environment build starts."""
 
     event: str = "pre_build"
     env_name: str = ""
-    ips: list[str] = field(default_factory=lambda: cast(list[str], []))
+    ips: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -90,7 +144,7 @@ class PostBuildEvent(EmpusaEvent):
     event: str = "post_build"
     env_name: str = ""
     env_path: str = ""
-    ips: list[str] = field(default_factory=lambda: cast(list[str], []))
+    ips: list[str] = field(default_factory=list)
 
 
 # -- Scanning -------------------------------------------------------
@@ -183,7 +237,7 @@ class PreCommandEvent(EmpusaEvent):
 
     event: str = "pre_command"
     command: str = ""
-    args: list[str] = field(default_factory=lambda: cast(list[str], []))
+    args: list[str] = field(default_factory=list)
     working_dir: str = ""
 
 
@@ -193,7 +247,7 @@ class PostCommandEvent(EmpusaEvent):
 
     event: str = "post_command"
     command: str = ""
-    args: list[str] = field(default_factory=lambda: cast(list[str], []))
+    args: list[str] = field(default_factory=list)
     return_code: int = 0
     stdout: str = ""
     stderr: str = ""
@@ -222,10 +276,13 @@ class TestFireEvent(EmpusaEvent):
 
 # -- Registry of event name -> dataclass -----------------------------
 
-EVENT_MAP: dict[str, type] = {
+EVENT_MAP: dict[str, type[EmpusaEvent]] = {
     "on_startup": StartupEvent,
     "on_shutdown": ShutdownEvent,
     "on_env_select": EnvSelectEvent,
+    "pre_workspace_init": PreWorkspaceInitEvent,
+    "post_workspace_init": PostWorkspaceInitEvent,
+    "on_workspace_select": WorkspaceSelectEvent,
     "pre_build": PreBuildEvent,
     "post_build": PostBuildEvent,
     "pre_scan_host": PreScanHostEvent,

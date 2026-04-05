@@ -4,7 +4,7 @@ Empusa - Event Bus (Layer 1 + 2)
 The bus is the central nervous system of the plugin framework:
 
 - **Layer 1 - Event emission**: Core code calls ``bus.emit(event)`` with
-  a typed ``EmpusaEvent`` dataclass (or an event-name string + dict for
+  a typed ``EmpusaEvent`` dataclass (or an event-name string + dict fo
   backward compatibility).
 - **Layer 2 - Hook adapter**: Legacy ``run(context)`` scripts in
   ``empusa/hooks/<event>/`` are discovered and invoked automatically,
@@ -51,7 +51,7 @@ class EventBus:
 
     Supports three listener categories:
 
-    1. **Legacy hooks** - ``run(context: dict)`` scripts in the hooks dir
+    1. **Legacy hooks** - ``run(context: dict)`` scripts in the hooks di
     2. **Native subscribers** - callables registered via ``.subscribe()``
     3. **Plugins** - routed through an attached ``PluginManager``
     """
@@ -122,7 +122,7 @@ class EventBus:
         name = event.event
         results: list[dict[str, Any]] = []
 
-        # Layer 2 - legacy hook adapter
+        # Layer 2 - legacy hook adapte
         self._fire_legacy_hooks(name, event.to_dict())
 
         # Native subscribers

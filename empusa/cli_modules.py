@@ -86,7 +86,7 @@ LANGUAGE_EXTENSIONS: dict[str, str] = {
 # copied into build/ so the framework treats it like any other output.
 INTERPRETED_LANGUAGES = {"perl", "python", "ruby", "shell"}
 
-# Interpreter commands used to build a "suggested invocation" hint for
+# Interpreter commands used to build a "suggested invocation" hint fo
 # script-type modules.  Compiled modules just use the artifact path.
 INTERPRETER_HINT: dict[str, str] = {
     "perl": "perl",
@@ -420,7 +420,7 @@ def module_info(
     Shows all metadata plus resolved artifact paths, then offers:
     1. Show build command
     2. Show launch command
-    3. Open build folder
+    3. Open build folde
     4. Source preview
     5. Rebuild
     6. Validate module
@@ -478,7 +478,7 @@ def module_info(
         table.add_row("Target OS", mod.get("target_os", "any"))
         table.add_row("Build Status", build_status)
         table.add_row("Artifact Freshness", _FRESHNESS_STYLE.get(art["artifact_freshness"], "[dim]?[/dim]"))
-        table.add_row("", "")  # spacer
+        table.add_row("", "")  # space
         table.add_row("Module Dir", art["module_dir"])
         table.add_row("Source", art["source_path"])
         table.add_row("Build Dir", art["build_dir"])

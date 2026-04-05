@@ -303,6 +303,6 @@ class TestSyncLootToEnvFiles:
         env = tmp_path / "empty"
         env.mkdir()
         _sync_loot_to_env_files(env, [])
-        # Should create files with just the comment header
+        # Should create files with just the comment heade
         assert (env / "empty-users.txt").exists()
         assert (env / "empty-passwords.txt").exists()

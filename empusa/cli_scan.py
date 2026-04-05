@@ -31,6 +31,7 @@ from empusa.cli_common import (
     log_verbose,
     sanitize_filename,
 )
+from empusa.workspace import BuildLayout, ensure_build_layout
 
 if TYPE_CHECKING:
     from empusa.services import Services
@@ -406,9 +407,22 @@ def run_nmap(
 # ═══════════════════════════════════════════════════════════════════
 
 
-def summarize_hosts(env_name: str) -> None:
-    """Summarize scan results for all hosts in an environment."""
-    base_dir = Path(env_name).absolute()
+def summarize_hosts(env_name: str, *, scans_dir: Path | None = None) -> None:
+    """Summarize scan results for all hosts in an environment.
+
+    When *scans_dir* is given the host directories are read from that
+    path.  When omitted, the function checks for an active workspace
+    (via ``CONFIG["workspace_path"]``) and looks in its ``scans/``
+    subdirectory.  Falls back to ``Path(env_name).absolute()``.
+    """
+    if scans_dir is not None:
+        base_dir = scans_dir
+    elif CONFIG.get("workspace_path"):
+        ws = Path(str(CONFIG["workspace_path"]))
+        sd = ws / "scans"
+        base_dir = sd if sd.is_dir() else ws
+    else:
+        base_dir = Path(env_name).absolute()
     if not base_dir.exists():
         return
 
@@ -561,8 +575,16 @@ def build_env(
     ips: list[str],
     *,
     run_hooks_fn: Callable[..., Any] | None = None,
-) -> None:
-    """Build penetration testing environment with scanning and file structure."""
+    workspace_path: Path | None = None,
+) -> BuildLayout | None:
+    """Build penetration testing environment with scanning and file structure.
+
+    When *workspace_path* is given the scan artifacts are nested inside
+    the workspace's profile directories (``scans/``, ``creds/``,
+    ``logs/``) instead of a flat CWD-relative layout.  Returns the
+    resolved :class:`~empusa.workspace.BuildLayout` on success, o
+    *None* when validation fails or the run is aborted.
+    """
     valid_ips: list[str] = []
     for ip in ips:
         if validate_ip(ip):
@@ -572,33 +594,26 @@ def build_env(
 
     if not valid_ips:
         log_error("No valid IP addresses provided. Aborting.")
-        return
+        return None
 
     if not check_tool_exists("nmap"):
         log_error("Error: nmap not found. Please install nmap first.")
-        return
+        return None
 
     if CONFIG["dry_run"]:
         log_info(f"[DRY RUN] Would build environment '{env_name}' for IPs: {', '.join(valid_ips)}", "yellow")
-        return
+        return None
 
-    base_dir = Path(env_name).absolute()
+    # When running inside an existing workspace the directory tree was
+    # created intentionally — skip the "already exists" guard.
+    if workspace_path is None:
+        check_dir = Path(env_name).absolute()
+        if check_dir.exists() and any(check_dir.iterdir()):
+            if not Confirm.ask(f"[yellow]Environment '{env_name}' already exists. Continue?[/yellow]"):
+                return None
 
-    if base_dir.exists() and any(base_dir.iterdir()):
-        if CONFIG["dry_run"]:
-            log_info(f"[DRY RUN] Environment '{env_name}' already exists", "yellow")
-        elif not Confirm.ask(f"[yellow]Environment '{env_name}' already exists. Continue?[/yellow]"):
-            return
-
-    base_dir.mkdir(parents=True, exist_ok=True)
-
-    users_file = base_dir / f"{env_name}-users.txt"
-    passwords_file = base_dir / f"{env_name}-passwords.txt"
-    commands_log_file = base_dir / "commands_ran.txt"
-
-    users_file.touch()
-    passwords_file.touch()
-    commands_log_file.touch()
+    # -- Scaffold directories via workspace module -------------------
+    layout = ensure_build_layout(env_name, valid_ips, workspace_path=workspace_path)
 
     # Shell history logging is opt-in to avoid mutating the operator's
     # shell profile (especially important in CI / containers).
@@ -606,14 +621,7 @@ def build_env(
         "[yellow]Enable shell history logging for this env?[/yellow]",
         default=False,
     ):
-        configure_shell_history(commands_log_file)
-
-    ip_dirs: dict[str, Path] = {}
-    for ip in valid_ips:
-        temp_path = base_dir / ip
-        nmap_path = temp_path / "nmap"
-        nmap_path.mkdir(parents=True, exist_ok=True)
-        ip_dirs[ip] = nmap_path
+        configure_shell_history(layout.commands_log)
 
     if run_hooks_fn is not None:
         run_hooks_fn(
@@ -630,7 +638,8 @@ def build_env(
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         future_to_ip = {
-            executor.submit(run_nmap, ip, nmap_path, run_hooks_fn=run_hooks_fn): ip for ip, nmap_path in ip_dirs.items()
+            executor.submit(run_nmap, ip, nmap_path, run_hooks_fn=run_hooks_fn): ip
+            for ip, nmap_path in layout.ip_nmap_dirs.items()
         }
 
         if not CONFIG["quiet"]:
@@ -651,8 +660,8 @@ def build_env(
 
     for ip, scan_output in scan_results.items():
         os_type = detect_os(scan_output)
-        old_path = base_dir / ip
-        new_path = base_dir / f"{ip}-{os_type}"
+        old_path = layout.scans_dir / ip
+        new_path = layout.scans_dir / f"{ip}-{os_type}"
 
         if new_path.exists():
             log_verbose(f"Warning: {new_path} already exists. Skipping rename.", "bold red")
@@ -664,7 +673,7 @@ def build_env(
                 log_error(f"Error renaming {old_path}: {e}")
 
     try:
-        with commands_log_file.open("a") as f:
+        with layout.commands_log.open("a") as f:
             f.write(
                 f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] "
                 f"Built environment '{env_name}' with IPs: {', '.join(valid_ips)}\n"
@@ -677,7 +686,9 @@ def build_env(
             "post_build",
             {
                 "env_name": env_name,
-                "env_path": str(base_dir),
+                "env_path": str(layout.base_dir),
                 "ips": valid_ips,
             },
         )
+
+    return layout

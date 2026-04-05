@@ -448,7 +448,7 @@ class TestPluginConfig:
 
     def test_set_and_get(self, plugins_dir: Path) -> None:
         write_plugin(plugins_dir, "cfg_rw")
-        # Write a config.json so it gets loaded during discover
+        # Write a config.json so it gets loaded during discovery
         (plugins_dir / "cfg_rw" / "config.json").write_text('{"initial": true}')
         pm = PluginManager(plugins_dir)
         pm.discover()

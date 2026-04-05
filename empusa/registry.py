@@ -14,7 +14,9 @@ compose them at runtime.  Six capability types are supported:
 The registry is a singleton-import and use ``registry`` directly.
 """
 
-from typing import Any, Callable, Optional
+from __future__ import annotations
+
+from typing import Any, Callable
 
 # Type alias for a capability handler - any callable.
 Handler = Callable[..., Any]
@@ -31,7 +33,7 @@ class _CapabilityEntry:
         handler: Handler,
         plugin_name: str = "",
         description: str = "",
-        meta: Optional[dict[str, Any]] = None,
+        meta: dict[str, Any] | None = None,
     ) -> None:
         self.name = name
         self.handler = handler
@@ -80,7 +82,7 @@ class CapabilityRegistry:
         handler: Handler,
         plugin_name: str = "",
         description: str = "",
-        meta: Optional[dict[str, Any]] = None,
+        meta: dict[str, Any] | None = None,
     ) -> None:
         """Register a capability under *category*.
 
@@ -101,7 +103,7 @@ class CapabilityRegistry:
         """Return all entries for *category*."""
         return list(self._store.get(category, []))
 
-    def get_by_name(self, category: str, name: str) -> Optional[_CapabilityEntry]:
+    def get_by_name(self, category: str, name: str) -> _CapabilityEntry | None:
         """Return a specific entry by category + name, or ``None``."""
         for entry in self._store.get(category, []):
             if entry.name == name:
@@ -142,7 +144,7 @@ class CapabilityRegistry:
         handler: Handler,
         plugin_name: str = "",
         description: str = "",
-        meta: Optional[dict[str, Any]] = None,
+        meta: dict[str, Any] | None = None,
     ) -> None:
         self.register("analyzer", name, handler, plugin_name, description, meta)
 
@@ -152,7 +154,7 @@ class CapabilityRegistry:
         handler: Handler,
         plugin_name: str = "",
         description: str = "",
-        meta: Optional[dict[str, Any]] = None,
+        meta: dict[str, Any] | None = None,
     ) -> None:
         self.register("notifier", name, handler, plugin_name, description, meta)
 
@@ -162,7 +164,7 @@ class CapabilityRegistry:
         handler: Handler,
         plugin_name: str = "",
         description: str = "",
-        meta: Optional[dict[str, Any]] = None,
+        meta: dict[str, Any] | None = None,
     ) -> None:
         self.register("report_section", name, handler, plugin_name, description, meta)
 
@@ -172,7 +174,7 @@ class CapabilityRegistry:
         handler: Handler,
         plugin_name: str = "",
         description: str = "",
-        meta: Optional[dict[str, Any]] = None,
+        meta: dict[str, Any] | None = None,
     ) -> None:
         self.register("exporter", name, handler, plugin_name, description, meta)
 
@@ -182,7 +184,7 @@ class CapabilityRegistry:
         handler: Handler,
         plugin_name: str = "",
         description: str = "",
-        meta: Optional[dict[str, Any]] = None,
+        meta: dict[str, Any] | None = None,
     ) -> None:
         self.register("tunnel_template", name, handler, plugin_name, description, meta)
 
@@ -192,7 +194,7 @@ class CapabilityRegistry:
         handler: Handler,
         plugin_name: str = "",
         description: str = "",
-        meta: Optional[dict[str, Any]] = None,
+        meta: dict[str, Any] | None = None,
     ) -> None:
         self.register("recon_strategy", name, handler, plugin_name, description, meta)
 

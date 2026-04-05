@@ -215,6 +215,22 @@ __marimo__/
 
 # Rust build artifacts (cargo)
 **/target/
+Cargo.lock
+
+# Go generated files
+go.sum
+
+# Native compiler output (C/C++ modules)
+*.o
+*.obj
+*.exe
+*.elf
+*.out
+*.pdb
+*.dll
+*.dylib
+*.a
+*.lib
 
 # Build markers (empusa module workshop)
 .build_ok

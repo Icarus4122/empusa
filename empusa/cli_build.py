@@ -66,3 +66,4 @@ from empusa.cli_scan import (
     validate_port as validate_port,
 )
 from empusa.cli_tunnel import build_reverse_tunnel as build_reverse_tunnel
+from empusa.workspace import BuildLayout as BuildLayout

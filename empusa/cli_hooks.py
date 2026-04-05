@@ -144,7 +144,7 @@ def manager_overview_render(
     )
 
     # -- Hook coverage rows (configured only, empties collapsed) --
-    table.add_row("", "")  # spacer
+    table.add_row("", "")  # space
     if h["configured"]:
         for evt, scripts in h["configured"]:
             scripts_str = ", ".join(scripts)

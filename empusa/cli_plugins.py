@@ -8,8 +8,8 @@ Interactive UI for managing the plugin lifecycle:
 - **toggle_plugin** - option 8: enable / disable with blocked guard
 - **plugin_info** - option 9: detail view + config editor
 - **uninstall_plugin_ui** - option 10: confirm + delete
-- **show_registry** - option 11: capability registry table
-- **open_plugins_dir** - option 12: open in OS file manager
+- **open_plugins_dir** - option 11: open in OS file manager
+- **show_registry** - option 12: capability registry table
 """
 
 from __future__ import annotations

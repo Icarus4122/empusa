@@ -63,6 +63,71 @@ Thanks for your interest in Empusa! Here is how you can help.
 - New domain logic goes in `cli_build.py` or a dedicated sub-module, not `cli.py`.
 - Functions needing framework access take keyword-only parameters (`run_hooks_fn`, `services`, `ask_env_fn`) rather than importing globals.
 
+## Documentation Style
+
+These rules apply to all markdown files in both Empusa and Hecate.
+Contract docs (`docs/empusa.md`, profile tables, env-var tables) **must** stay
+aligned with source code and test assertions — update them in the same commit.
+
+### Badges
+
+- Use `shields.io` flat badges at the top of `README.md` only.
+- One line per badge.  No blank lines between badges.
+- Link each badge to something actionable (CI page, section anchor, license file).
+
+### Mermaid diagrams
+
+- Use only for: architecture boundaries, lifecycle flows, dispatch graphs, topology.
+- Do **not** use FA icons (`fa:fa-*`) — they don't render on GitHub.
+- Do **not** add `classDef` / `class` blocks — GitHub ignores custom styles.
+- Keep nodes ≤ 2 lines of text.  If a node needs 3+ lines, it belongs in a table.
+- Node IDs should map to real files or components (`BUS`, `LABCTL`, not `box1`).
+
+### Tables
+
+- Prefer tables over bullet lists for structured data (flags, variables, paths).
+- Environment variables: include **Type**, **Default**, and **Used by** columns.
+- CLI flags: include **Type** and **Default** columns.
+- Profile/contract tables: reference the source-of-truth file in a caption or header.
+
+Example (env var):
+
+```markdown
+| Variable | Type | Default | Used by |
+|----------|------|---------|---------|
+| `LAB_GPU` | `0\|1` | `0` | launch-lab.sh, lib/compose.sh |
+```
+
+### Code fences
+
+- Always tag the language: `` ```bash ``, `` ```python ``, `` ```text ``.
+- Use `text` for static output, directory trees, and non-executable content.
+- Separate commands from their output — don't paste both in one fence.
+
+### Paths
+
+- Use backtick-wrapped paths: `` `empusa/workspace.py` ``, `` `${LAB_ROOT}/tools/` ``.
+- Use forward slashes in docs, even if the host is Windows.
+- Prefer `${VAR}` over hardcoded absolute paths when a variable exists.
+
+### Terminology
+
+| Term | Meaning | Do NOT use |
+| ------ | --------- | ----------- |
+| workspace | An Empusa-managed engagement directory | environment, env |
+| profile | A workspace profile (`htb`, `build`, `research`, `internal`) | template, layout |
+| Hecate | The platform bootstrap product | lab-bootstrap |
+| Empusa | The workspace engine | orchestrator |
+| `labctl` | The Hecate CLI dispatcher | lab script |
+
+### Source-of-truth discipline
+
+- Profile definitions (dirs, templates) → `empusa/workspace.py → PROFILES`.
+- Template files → `hecate-bootstrap/templates/*.md`.
+- Delegation logic → `hecate-bootstrap/scripts/create-workspace.sh`, `launch-lab.sh`.
+- If you change a contract surface, update the matching doc table **and** the
+  test assertion in the same PR.
+
 ## Writing Hooks / Plugins
 
 Empusa 2.0 ships with a hook system. To contribute a hook:
@@ -89,6 +154,10 @@ Empusa 2.0 ships with a hook system. To contribute a hook:
 | `pre_command` | Before subprocess | `command`, `args`, `working_dir` |
 | `post_command` | After subprocess | `command`, `return_code`, `stdout` |
 | `post_compile` | After module compiled | `module_name`, `language`, `output_path` |
+| `pre_workspace_init` | Before workspace creation | `workspace_name`, `workspace_root`, `profile` |
+| `post_workspace_init` | After workspace scaffolding | `workspace_name`, `workspace_path`, `profile` |
+| `on_workspace_select` | Workspace activated | `workspace_name`, `workspace_path`, `profile` |
+| `test_fire` | Synthetic test event | `ip`, `host`, `username`, `secret`, `cred_type` |
 
 ### Hook Template
 

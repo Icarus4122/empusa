@@ -76,13 +76,19 @@ for every lifecycle event:
 
 ```text
 empusa/hooks/
-├-- on_startup/
-├-- on_shutdown/
-├-- post_build/
-├-- post_scan/
-├-- on_loot_add/
-├-- on_report_generated/
-└-- on_env_select/
+├── on_startup/
+├── on_shutdown/
+├── pre_build/
+├── post_build/
+├── pre_scan_host/
+├── post_scan/
+├── on_loot_add/
+├── on_report_generated/
+├── pre_report_write/
+├── on_env_select/
+├── pre_command/
+├── post_command/
+└── post_compile/
 ```
 
 You can also create example hooks via **menu option 8 -> Create example hook**.

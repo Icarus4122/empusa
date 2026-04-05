@@ -2,8 +2,8 @@
 * text=auto
 
 # Python
-*.py text diff=python
-*.pyi text diff=python
+*.py text eol=lf diff=python
+*.pyi text eol=lf diff=python
 
 # Shell
 *.sh text eol=lf

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import argparse
 import atexit
 import os
@@ -5,7 +7,7 @@ import signal
 import subprocess
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from rich.console import Console
 from rich.panel import Panel
@@ -33,6 +35,7 @@ from empusa.cli_common import (
     SESSION_ACTIONS,
     clear_screen,
     console,
+    has_active_workspace,
     load_loot,
     log_action,
     log_error,
@@ -69,6 +72,13 @@ from empusa.cli_plugins import (
     uninstall_plugin_ui,
 )
 from empusa.cli_reports import report_builder
+from empusa.cli_workspace import (
+    cmd_workspace_init,
+    cmd_workspace_list,
+    cmd_workspace_select,
+    cmd_workspace_status,
+    register_workspace_parser,
+)
 from empusa.plugins import PluginManager
 
 # Plugin framework imports
@@ -88,9 +98,9 @@ from empusa.services import (
 
 
 # Global framework singletons (initialized in main())
-event_bus: Optional[EventBus] = None
-plugin_manager: Optional[PluginManager] = None
-services: Optional[Services] = None
+event_bus: EventBus | None = None
+plugin_manager: PluginManager | None = None
+services: Services | None = None
 
 
 def manage_hooks() -> None:
@@ -398,9 +408,16 @@ def _shutdown() -> None:
     # 5. Build farewell panel
     if not CONFIG["quiet"]:
         session_env = CONFIG.get("session_env", "")
+        ws_name = CONFIG.get("workspace_name", "")
+        ws_profile = CONFIG.get("workspace_profile", "")
         panel_lines: list[str] = []
         panel_lines.append("[bold red]Empusa[/bold red] session ended.")
-        if session_env:
+        if ws_name:
+            panel_lines.append(
+                f"Active workspace: [cyan]{ws_name}[/cyan]"
+                f" [dim](profile={ws_profile})[/dim]"
+            )
+        elif session_env:
             panel_lines.append(f"Active environment: [cyan]{session_env}[/cyan]")
         panel_lines.append(f"Timestamp: [dim]{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}[/dim]")
         panel_lines.append("")
@@ -457,7 +474,7 @@ def _detect_environments() -> list[str]:
         for entry in sorted(Path.cwd().iterdir()):
             if not entry.is_dir():
                 continue
-            # An environment dir contains at least one sub-dir with an nmap/ folder
+            # An environment dir contains at least one sub-dir with an nmap/ folde
             try:
                 for sub in entry.iterdir():
                     if sub.is_dir() and (sub / "nmap").is_dir():
@@ -513,6 +530,34 @@ def summarize_command() -> None:
     log_info("  0. Exit")
 
 
+def _render_session_status() -> None:
+    """Print a compact session status bar below the banner.
+
+    Shows the active workspace (name + profile) when present,
+    falls back to legacy session_env, or shows 'no active session'.
+    """
+    if CONFIG["quiet"]:
+        return
+
+    ws_name = CONFIG.get("workspace_name", "")
+    ws_profile = CONFIG.get("workspace_profile", "")
+    session_env = CONFIG.get("session_env", "")
+
+    if ws_name:
+        console.print(
+            f"  [bold green]★[/bold green] Workspace: [bold cyan]{ws_name}[/bold cyan]"
+            f"  [dim]profile={ws_profile}[/dim]"
+        )
+    elif session_env:
+        console.print(
+            f"  [yellow]▸[/yellow] Environment: [bold]{session_env}[/bold]"
+            f"  [dim](legacy — no workspace selected)[/dim]"
+        )
+    else:
+        console.print("  [dim]No active workspace or environment[/dim]")
+    console.print()
+
+
 def _ask_env(prompt_text: str = "Enter environment name") -> str:
     """Prompt for environment name, defaulting to the session env if set."""
     default = CONFIG["session_env"] if CONFIG["session_env"] else ""
@@ -566,6 +611,7 @@ def main_menu() -> None:
         # Clear the previous iteration's output, then show fresh context
         clear_screen()
         print_banner()
+        _render_session_status()
         envs = _detect_environments()
         if envs:
             _show_environments(envs)
@@ -587,16 +633,17 @@ def main_menu() -> None:
             ip_input = Prompt.ask("Enter IPs (comma-separated)")
             ips = [ip.strip() for ip in ip_input.split(",") if ip.strip()]
             log_action("Build Environment", f"{env_name} -> {', '.join(ips)}")
-            build_env(env_name, ips, run_hooks_fn=_run_hooks)
+            ws_path: Path | None = Path(CONFIG["workspace_path"]) if CONFIG["workspace_path"] else None
+            layout = build_env(env_name, ips, run_hooks_fn=_run_hooks, workspace_path=ws_path)
             # Offer next steps if environment was created
-            env_abs = Path(env_name).absolute()
-            if env_abs.exists():
+            check_dir = layout.base_dir if layout is not None else Path(env_name).absolute()
+            if check_dir.exists():
                 # Re-detect so the fresh environment appears in the table
                 envs = _detect_environments()
                 render_screen(f"Post-Build — {env_name}")
                 if envs:
                     _show_environments(envs)
-                summarize_hosts(env_name)
+                summarize_hosts(env_name, scans_dir=layout.scans_dir if layout else None)
                 render_group_heading("Next Steps", "bold green")
                 log_info("  1. Search Exploits from Nmap Results")
                 log_info("  2. Build Reverse Tunnel")
@@ -607,7 +654,8 @@ def main_menu() -> None:
                 nxt = Prompt.ask("Select", choices=["0", "1", "2", "3", "4", "5"], default="0")
                 if nxt == "1":
                     log_action("Exploit Search", f"Post-build -> {env_name}")
-                    for sub in sorted(env_abs.iterdir()):
+                    scan_root = layout.scans_dir if layout else check_dir
+                    for sub in sorted(scan_root.iterdir()):
                         if sub.is_dir() and "-" in sub.name:
                             nmap_f = sub / "nmap" / "full_scan.txt"
                             if nmap_f.exists():
@@ -800,7 +848,8 @@ def _cmd_build(args: argparse.Namespace) -> int:
     _init_framework()
     _run_hooks("on_startup")
     log_action("Build Environment", f"{args.env} -> {', '.join(ips)}")
-    build_env(args.env, ips, run_hooks_fn=_run_hooks)
+    ws_path: Path | None = Path(CONFIG["workspace_path"]) if CONFIG["workspace_path"] else None
+    build_env(args.env, ips, run_hooks_fn=_run_hooks, workspace_path=ws_path)
     _shutdown()
     return 0
 
@@ -915,6 +964,36 @@ def _cmd_plugins_refresh(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_workspace(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+    """Non-interactive workspace subcommand dispatcher."""
+    action = getattr(args, "ws_action", None)
+    if action is None:
+        parser.parse_args(["workspace", "--help"])
+        return 1
+
+    _init_framework()
+
+    def _emit(evt: str, ctx: dict[str, Any]) -> None:
+        if event_bus is not None:
+            event_bus.emit_legacy(evt, ctx)
+
+    rc: int
+    if action == "init":
+        rc = cmd_workspace_init(args, emit_fn=_emit)
+    elif action == "list":
+        rc = cmd_workspace_list(args)
+    elif action == "select":
+        rc = cmd_workspace_select(args, emit_fn=_emit)
+    elif action == "status":
+        rc = cmd_workspace_status(args)
+    else:
+        parser.parse_args(["workspace", "--help"])
+        rc = 1
+
+    _shutdown()
+    return rc
+
+
 def main() -> None:
     """Main entry point for the Empusa CLI."""
     from empusa import __version__
@@ -976,6 +1055,9 @@ def main() -> None:
     sp_plugins_sub = sp_plugins.add_subparsers(dest="plugins_action")
     sp_plugins_sub.add_parser("refresh", help="Refresh plugin lifecycle")
 
+    # empusa workspace init|list|select|status
+    register_workspace_parser(subparsers)
+
     args = parser.parse_args()
 
     # Update global configuration
@@ -1017,6 +1099,8 @@ def main() -> None:
         else:
             parser.parse_args(["plugins", "--help"])
             return
+    elif args.command == "workspace":
+        raise SystemExit(_cmd_workspace(args, parser))
 
     # -- No subcommand: interactive mode -----------------------------
     _init_framework()

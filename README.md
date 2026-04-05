@@ -12,11 +12,12 @@
 
 > *"She shifts form... beauty, beast, and death."*
 
-Empusa is a Python-based console framework for organizing repeatable operator workflows around environment setup, host scanning, loot tracking, exploit triage, report generation, module compilation, and event-driven extension points.
+Empusa is a Python-based console framework for organizing repeatable operator workflows around workspace management, environment setup, host scanning, loot tracking, exploit triage, report generation, module compilation, and event-driven extension points.
 
-It is built around three core ideas:
+It is built around four core ideas:
 
-- **Structured environments** for keeping engagement artifacts organized.
+- **Workspaces** for profile-aware engagement organization with template seeding and metadata tracking.
+- **Structured environments** for keeping scan artifacts, credentials, and logs organized.
 - **Lifecycle events** for automation without hard-wiring custom logic into the core CLI.
 - **Extensibility** through both lightweight hooks and manifest-driven plugins.
 
@@ -39,6 +40,7 @@ It is built around three core ideas:
 - [Architecture](#architecture)
 - [Installation](#installation)
 - [Usage](#usage)
+- [Workspaces](#workspaces)
 - [Interactive Menu](#interactive-menu)
 - [Non-Interactive Commands](#non-interactive-commands)
 - [Environment Layout](#environment-layout)
@@ -59,7 +61,7 @@ It is built around three core ideas:
 
 Empusa is designed for users who want a single terminal workflow that can:
 
-- create and maintain per-engagement environments,
+- create and maintain profile-aware engagement workspaces,
 - centralize scan output and operator notes,
 - track loot and credential material,
 - generate reports from collected artifacts,
@@ -72,9 +74,17 @@ The project is especially strong where **operator workflow consistency** matters
 
 ## Feature Overview
 
+### Workspace management
+
+- Creates profile-aware workspaces with directory scaffolding and template seeding.
+- Supports four workspace profiles: `htb`, `build`, `research`, `internal`.
+- Tracks workspace metadata (profile, creation date, seeded templates).
+- Lists, selects, and inspects workspaces non-interactively.
+- Emits workspace lifecycle events for plugin integration.
+
 ### Environment and workflow management
 
-- Builds named environments for one or more targets.
+- Builds named environments for one or more targets, standalone or inside a workspace.
 - Tracks the active environment in-session.
 - Detects previously created environments automatically.
 - Summarizes discovered hosts when an environment is active.
@@ -83,6 +93,7 @@ The project is especially strong where **operator workflow consistency** matters
 
 - Runs host build workflows with configurable worker count.
 - Stores scan output under host-specific folders.
+- Places scan artifacts under the workspace `scans/` directory when a workspace is active, or in a flat layout when running standalone.
 - Supports exploit-search workflows against saved `nmap` results.
 
 ### Loot and reporting
@@ -121,75 +132,46 @@ Empusa follows an event-driven console architecture with five distinct layers.
 
 ```mermaid
 flowchart TB
-    OP(["fa:fa-terminal Operator"])
-
+    OP(["Operator"])
     OP --> MENU
 
-    subgraph INTERFACE [" CLI Layer "]
-        direction LR
+    subgraph CLI [" CLI Layer "]
         MENU["cli.py\nInteractive Menu"]
-        SCAN["cli_scan\nHost Discovery"]
-        LOOT["cli_loot\nLoot Tracker"]
-        TUNNEL["cli_tunnel\nReverse Tunnels"]
-        HASH["cli_hash\nHash ID & Crack"]
-        AD["cli_ad\nAD Playbooks"]
-        PRIVESC["cli_privesc\nPrivesc Enum"]
-        MODULES["cli_modules\nModule Workshop"]
-        REPORTS["cli_reports\nReport Builder"]
+        MODS["cli_* modules\nscan · loot · hash · tunnel\nad · privesc · build\nmodules · plugins · reports"]
     end
 
-    MENU --- SCAN & LOOT & TUNNEL
-    MENU --- HASH & AD & PRIVESC
-    MENU --- MODULES & REPORTS
-
-    SCAN & LOOT & REPORTS --> BUS
+    MENU --> MODS
+    MODS -->|"lifecycle events"| BUS
 
     subgraph ENGINE [" Event Engine "]
-        BUS["bus.py — EventBus\ntyped dispatch · async-safe"]
+        BUS["bus.py\nEventBus"]
     end
 
-    BUS --> HOOKS & PM
+    BUS --> HOOKS
+    BUS --> PM
 
-    subgraph EXTENSIONS [" Extension Layer "]
+    subgraph EXT [" Extension Layer "]
         direction LR
-        HOOKS["hooks/\nLegacy Scripts\nrun&lpar;context&rpar;"]
-        PM["plugins.py\nPlugin Manager\nactivate · deactivate · resolve"]
+        HOOKS["hooks/\nEvent Scripts"]
+        PM["plugins.py\nPlugin Manager"]
     end
 
-    PM --> REG & SVC
+    PM --> REG
+    PM --> SVC
 
     subgraph CORE [" Core Services "]
-        REG["registry.py\nCapability Registry\nprovider lookup"]
-        subgraph SVC [" Scoped Services "]
-            direction LR
-            LOG["LoggerService"]
-            ART["ArtifactWriter"]
-            LA["LootAccessor"]
-            ENV["EnvResolver"]
-            CMD["CommandRunner"]
-        end
+        direction LR
+        REG["registry.py\nCapability Registry"]
+        SVC["services.py\nLogger · Artifacts · Loot\nEnvResolver · CommandRunner"]
     end
-
-    classDef layer fill:none,stroke:#555,stroke-width:2px,color:#ccc,rx:8
-    classDef node_default fill:#1a1a2e,stroke:#7c3aed,color:#e2e8f0,rx:6
-    classDef bus_node fill:#1a1a2e,stroke:#f59e0b,color:#fbbf24,rx:6
-    classDef ext_node fill:#1a1a2e,stroke:#10b981,color:#6ee7b7,rx:6
-    classDef svc_node fill:#1a1a2e,stroke:#3b82f6,color:#93c5fd,rx:6
-    classDef op_node fill:#7c3aed,stroke:#7c3aed,color:#fff
-
-    class INTERFACE,ENGINE,EXTENSIONS,CORE layer
-    class MENU,SCAN,LOOT,TUNNEL,HASH,AD,PRIVESC,MODULES,REPORTS node_default
-    class BUS bus_node
-    class HOOKS,PM ext_node
-    class REG,LOG,ART,LA,ENV,CMD svc_node
-    class OP op_node
 ```
 
 ### Core layers
 
 | Layer | Purpose |
 | --- | --- |
-| CLI | Interactive menu and non-interactive subcommands |
+| CLI | Interactive menu, workspace subcommands, and non-interactive subcommands |
+| Workspace | Profile-aware directory scaffolding, template seeding, metadata tracking |
 | Event bus | Dispatches lifecycle events to hooks and plugins |
 | Hooks | Lightweight event handlers in Python |
 | Plugins | Manifest-driven, permission-aware extension model |
@@ -288,6 +270,89 @@ empusa --no-color
 
 ---
 
+## Workspaces
+
+Workspaces are the primary organizational unit in Empusa.  A workspace is a profile-aware directory tree with metadata tracking, template seeding, and lifecycle events.
+
+### Workspace lifecycle vs build lifecycle
+
+Empusa separates two concerns:
+
+| Concept | Scope | Commands |
+| --- | --- | --- |
+| **Workspace** | Engagement-level organization: directories, templates, metadata | `workspace init`, `workspace list`, `workspace select`, `workspace status` |
+| **Build** | Target-level scanning: nmap, host enumeration, credential tracking | `build`, interactive menu option 1 |
+
+A workspace can exist without any builds.  A build can run without a workspace (standalone flat layout).  When both are active, builds nest their artifacts inside the workspace's `scans/`, `creds/`, and `logs/` directories.
+
+### Workspace profiles
+
+| Profile | Directories | Templates |
+| --- | --- | --- |
+| `htb` | notes, scans, web, creds, loot, exploits, screenshots, reports, logs | engagement, target, recon, services, finding, privesc, web |
+| `build` | src, out, notes, logs | *(none)* |
+| `research` | notes, references, poc, logs | recon |
+| `internal` | notes, scans, creds, loot, evidence, exploits, reports, logs | engagement, target, recon, services, finding, pivot, privesc, ad |
+
+### Create a workspace
+
+```bash
+empusa workspace init --name resolute --profile htb
+empusa workspace init --name resolute --profile htb --set-active
+empusa workspace init --name resolute --profile htb \
+    --root /opt/lab/workspaces \
+    --templates-dir /path/to/templates \
+    --set-active
+```
+
+### List workspaces
+
+```bash
+empusa workspace list
+empusa workspace list --root /opt/lab/workspaces
+```
+
+### Select (activate) a workspace
+
+```bash
+empusa workspace select --name resolute
+```
+
+Selecting a workspace activates it for the current session.  Subsequent builds, scans, and reports operate against the workspace path.  The `session_env` key is also updated for backward compatibility with existing workflows.
+
+### Inspect a workspace
+
+```bash
+empusa workspace status --name resolute
+```
+
+Shows profile, creation date, seeded templates, directory listing, and active indicator.
+
+### Workspace events
+
+| Event | When |
+| --- | --- |
+| `pre_workspace_init` | Before workspace directory tree is created |
+| `post_workspace_init` | After workspace is fully scaffolded |
+| `on_workspace_select` | When a workspace is activated |
+
+Plugins can subscribe to these events to react to workspace changes — for example, initializing a git repo, copying extra templates, or registering the workspace with an external system.
+
+### Session state
+
+When a workspace is active, Empusa tracks four CONFIG keys:
+
+| Key | Example |
+| --- | --- |
+| `workspace_name` | `resolute` |
+| `workspace_root` | `/opt/lab/workspaces` |
+| `workspace_path` | `/opt/lab/workspaces/resolute` |
+| `workspace_profile` | `htb` |
+
+The legacy `session_env` key is kept in sync with `workspace_name` so that existing build, scan, loot, and report flows continue to work without modification.
+
+---
+
 ## Interactive Menu
 
 The main interactive surface currently exposes these top-level actions:
@@ -307,6 +372,8 @@ The main interactive surface currently exposes these top-level actions:
 | `11` | Hash Identifier + Crack Builder |
 | `12` | AD Enumeration Playbook |
 | `0` | Exit |
+
+When a workspace is active, option 1 (Build New Environment) passes the workspace path to the build flow.  Scan artifacts are placed under the workspace's `scans/` directory, credentials under `creds/`, and the command log under `logs/`.
 
 ### Plugin and Hook Manager
 
@@ -332,7 +399,7 @@ The manager surface includes:
 
 ## Non-Interactive Commands
 
-Empusa also supports scripted execution through subcommands.
+Empusa supports scripted execution through subcommands.
 
 ### Build an environment
 
@@ -340,11 +407,23 @@ Empusa also supports scripted execution through subcommands.
 empusa build --env acme --ips 10.10.10.10,10.10.10.20
 ```
 
+| Argument | Type | Required | Description |
+| --- | --- | --- | --- |
+| `--env NAME` | string | yes | Environment name |
+| `--ips IP,IP,...` | comma-separated | yes | Target IP addresses |
+
+When a workspace is active (via `workspace select`), build artifacts are placed inside the workspace layout.  Otherwise a flat directory is created at `<env-name>/` relative to CWD.
+
 ### Search exploits from a saved host folder
 
 ```bash
 empusa exploit-search --env acme --host 10.10.10.10-Linux
 ```
+
+| Argument | Type | Required | Description |
+| --- | --- | --- | --- |
+| `--env NAME` | string | yes | Environment name |
+| `--host FOLDER` | string | yes | Host folder name (from build output) |
 
 ### List loot
 
@@ -363,11 +442,26 @@ empusa loot --env acme add \
   --source smb
 ```
 
+| Argument | Type | Required | Description |
+| --- | --- | --- | --- |
+| `--env NAME` | string | yes | Environment name |
+| `loot_action` | `list` \| `add` | yes | Loot operation |
+| `--host` | string | for `add` | Target host |
+| `--cred-type` | string | for `add` | Credential type |
+| `--username` | string | for `add` | Username |
+| `--secret` | string | for `add` | Secret / password |
+| `--source` | string | for `add` | Discovery source |
+
 ### Generate a report
 
 ```bash
 empusa report --env acme --assessment "Acme Internal Assessment"
 ```
+
+| Argument | Type | Required | Description |
+| --- | --- | --- | --- |
+| `--env NAME` | string | yes | Environment name |
+| `--assessment TITLE` | string | optional | Assessment title for the report |
 
 ### Refresh plugin state
 
@@ -379,19 +473,46 @@ empusa plugins refresh
 
 ## Environment Layout
 
-A typical environment layout looks like this:
+### Workspace-aware build (inside an active workspace)
+
+When a build runs inside a workspace, artifacts are nested into the workspace's profile directories:
+
+```text
+<workspace>/                         (created by workspace init)
+├── .empusa-workspace.json           metadata
+├── notes/
+├── scans/
+│   ├── <host-ip>-<os>/
+│   │   └── nmap/
+│   │       ├── full_scan.txt
+│   │       └── ports_grep.txt
+│   └── ...
+├── creds/
+│   ├── <env>-users.txt
+│   └── <env>-passwords.txt
+├── logs/
+│   └── commands_ran.txt
+├── loot/
+├── exploits/
+├── reports/
+│   └── <assessment>_report.md
+└── ...                              (profile-specific dirs)
+```
+
+### Standalone build (no workspace)
+
+Without an active workspace, the build creates a flat directory:
 
 ```text
 <environment>/
-├── <host>-<os>/
+├── <host-ip>-<os>/
 │   └── nmap/
 │       ├── full_scan.txt
-│       └── ports/
-│           ├── 22-ssh.txt
-│           ├── 80-http.txt
-│           └── ...
-├── loot.json
+│       └── ports_grep.txt
+├── <env>-users.txt
+├── <env>-passwords.txt
 ├── commands_ran.txt
+├── loot.json
 └── <assessment>_report.md
 ```
 
@@ -427,6 +548,9 @@ empusa/hooks/
 ├── post_compile/
 ├── pre_command/
 ├── post_command/
+├── pre_workspace_init/
+├── post_workspace_init/
+├── on_workspace_select/
 └── test_fire/
 ```
 
@@ -468,6 +592,9 @@ Additional keys depend on the emitted event.
 | `post_compile` | Fired after module compilation succeeds |
 | `pre_command` | Fired before a subprocess executes |
 | `post_command` | Fired after a subprocess completes |
+| `pre_workspace_init` | Fired before workspace creation |
+| `post_workspace_init` | Fired after workspace scaffolding completes |
+| `on_workspace_select` | Fired when a workspace is activated |
 | `test_fire` | Synthetic event used for testing |
 
 ---
@@ -587,15 +714,15 @@ Representative examples include:
 
 ## CLI Flags
 
-| Flag | Description |
-| --- | --- |
-| `--version` | Print the current version |
-| `-v`, `--verbose` | Enable verbose output |
-| `-q`, `--quiet` | Suppress non-essential output |
-| `--dry-run` | Show intended actions without executing |
-| `--no-color` | Disable colored terminal output |
-| `-w`, `--workers N` | Set maximum concurrent scan workers |
-| `--enable-shell-hooks` | Allow shell history logging hooks to be installed and removed |
+| Flag | Type | Default | Description |
+| --- | --- | --- | --- |
+| `--version` | boolean | — | Print the current version |
+| `-v`, `--verbose` | boolean | off | Enable verbose output |
+| `-q`, `--quiet` | boolean | off | Suppress non-essential output |
+| `--dry-run` | boolean | off | Show intended actions without executing |
+| `--no-color` | boolean | off | Disable colored terminal output |
+| `-w`, `--workers N` | integer | `8` | Set maximum concurrent scan workers |
+| `--enable-shell-hooks` | boolean | off | Allow shell history logging hooks to be installed and removed |
 
 ---
 
@@ -669,6 +796,9 @@ empusa/
 │   ├── cli_modules.py
 │   ├── cli_plugins.py
 │   ├── cli_reports.py
+│   ├── cli_scan.py
+│   ├── cli_workspace.py
+│   ├── workspace.py
 │   ├── bus.py
 │   ├── events.py
 │   ├── plugins.py

@@ -36,6 +36,11 @@ CONFIG: dict[str, Any] = {
     "max_workers": 8,
     "session_env": "",
     "enable_shell_hooks": False,
+    # -- Workspace session state (set by workspace init/select) ------
+    "workspace_name": "",
+    "workspace_root": "",
+    "workspace_path": "",
+    "workspace_profile": "",
 }
 
 SESSION_ACTIONS: list[dict[str, str]] = []
@@ -266,3 +271,53 @@ def load_loot(loot_file: Path) -> list[dict[str, Any]]:
         except (json.JSONDecodeError, Exception) as e:
             log_verbose(f"Warning: Could not parse loot file: {e}", "yellow")
     return []
+
+
+# -- Workspace session helpers ---------------------------------------
+
+
+def set_active_workspace(
+    name: str,
+    root: str,
+    path: str,
+    profile: str,
+) -> None:
+    """Record the active workspace in CONFIG.
+
+    Also sets ``session_env`` for backward compatibility with
+    existing build / scan / report flows that read that key.
+    """
+    CONFIG["workspace_name"] = name
+    CONFIG["workspace_root"] = root
+    CONFIG["workspace_path"] = path
+    CONFIG["workspace_profile"] = profile
+    # Keep session_env in sync so legacy code sees the workspace name.
+    CONFIG["session_env"] = name
+
+
+def clear_active_workspace() -> None:
+    """Clear all workspace session keys (and ``session_env``)."""
+    CONFIG["workspace_name"] = ""
+    CONFIG["workspace_root"] = ""
+    CONFIG["workspace_path"] = ""
+    CONFIG["workspace_profile"] = ""
+    CONFIG["session_env"] = ""
+
+
+def get_active_workspace() -> dict[str, str]:
+    """Return the active workspace fields from CONFIG.
+
+    Returns a dict with ``name``, ``root``, ``path``, ``profile``.
+    All values are empty strings when no workspace is active.
+    """
+    return {
+        "name": str(CONFIG.get("workspace_name", "")),
+        "root": str(CONFIG.get("workspace_root", "")),
+        "path": str(CONFIG.get("workspace_path", "")),
+        "profile": str(CONFIG.get("workspace_profile", "")),
+    }
+
+
+def has_active_workspace() -> bool:
+    """Return ``True`` if a workspace is currently active."""
+    return bool(CONFIG.get("workspace_name", ""))

@@ -94,7 +94,7 @@ class TestCreatePluginRefresh:
         mock_prompt.ask.side_effect = [
             "test_plugin",  # name
             "1.0.0",  # version
-            "Test Author",  # author
+            "Test Author",  # autho
             "A test plugin",  # description
             "",  # events (default)
             "",  # permissions (default)
