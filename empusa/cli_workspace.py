@@ -75,10 +75,7 @@ def cmd_workspace_init(
     templates_dir = Path(args.templates_dir) if args.templates_dir else None
 
     if profile not in PROFILES:
-        log_error(
-            f"Unknown profile {profile!r}. "
-            f"Valid profiles: {', '.join(sorted(PROFILES))}"
-        )
+        log_error(f"Unknown profile {profile!r}. Valid profiles: {', '.join(sorted(PROFILES))}")
         return 1
 
     # Warn early if the profile expects templates but no dir was given
@@ -201,7 +198,9 @@ def cmd_workspace_list(args: argparse.Namespace) -> int:
     if active_name:
         console.print(f"\n  [dim]Active workspace:[/dim] [bold green]{active_name}[/bold green]")
     else:
-        console.print("\n  [dim]No workspace is currently active. Use[/dim] [bold]workspace select --name NAME[/bold] [dim]to activate one.[/dim]")
+        console.print(
+            "\n  [dim]No workspace is currently active. Use[/dim] [bold]workspace select --name NAME[/bold] [dim]to activate one.[/dim]"
+        )
     return 0
 
 
@@ -222,10 +221,7 @@ def cmd_workspace_select(
     try:
         meta = load_metadata(ws_path)
     except FileNotFoundError:
-        log_error(
-            f"No metadata file in {ws_path}. "
-            "Was this workspace created with 'empusa workspace init'?"
-        )
+        log_error(f"No metadata file in {ws_path}. Was this workspace created with 'empusa workspace init'?")
         return 1
 
     CONFIG["session_env"] = name
@@ -271,10 +267,7 @@ def cmd_workspace_status(args: argparse.Namespace) -> int:
     active_ws = get_active_workspace()
     meta_name = meta.get("name", "")
     is_workspace_active = active_ws["name"] == meta_name and meta_name != ""
-    is_legacy_match = (
-        not is_workspace_active
-        and CONFIG.get("session_env", "") == name
-    )
+    is_legacy_match = not is_workspace_active and CONFIG.get("session_env", "") == name
 
     if is_workspace_active:
         status_line = "[bold green]★ Active workspace[/bold green]"
@@ -297,9 +290,7 @@ def cmd_workspace_status(args: argparse.Namespace) -> int:
     lines.append(f"  [bold]{'Status':<14}[/bold] {status_line}")
 
     # -- Directory listing with file counts --------------------------
-    dirs = sorted(
-        p for p in ws_path.iterdir() if p.is_dir()
-    )
+    dirs = sorted(p for p in ws_path.iterdir() if p.is_dir())
     if dirs:
         lines.append("")
         lines.append("  [bold cyan]Directories[/bold cyan]")

@@ -608,7 +608,11 @@ def build_env(
     # created intentionally — skip the "already exists" guard.
     if workspace_path is None:
         check_dir = Path(env_name).absolute()
-        if check_dir.exists() and any(check_dir.iterdir()) and not Confirm.ask(f"[yellow]Environment '{env_name}' already exists. Continue?[/yellow]"):
+        if (
+            check_dir.exists()
+            and any(check_dir.iterdir())
+            and not Confirm.ask(f"[yellow]Environment '{env_name}' already exists. Continue?[/yellow]")
+        ):
             return None
 
     # -- Scaffold directories via workspace module -------------------

@@ -161,10 +161,7 @@ def create_workspace(
         Structured summary of everything that was created.
     """
     if profile not in PROFILES:
-        raise ValueError(
-            f"Unknown profile {profile!r}. "
-            f"Valid profiles: {', '.join(sorted(PROFILES))}"
-        )
+        raise ValueError(f"Unknown profile {profile!r}. Valid profiles: {', '.join(sorted(PROFILES))}")
 
     safe_name = _sanitize(name)
     ws_root = root or DEFAULT_WORKSPACE_ROOT

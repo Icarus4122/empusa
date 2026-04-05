@@ -412,10 +412,7 @@ def _shutdown() -> None:
         panel_lines: list[str] = []
         panel_lines.append("[bold red]Empusa[/bold red] session ended.")
         if ws_name:
-            panel_lines.append(
-                f"Active workspace: [cyan]{ws_name}[/cyan]"
-                f" [dim](profile={ws_profile})[/dim]"
-            )
+            panel_lines.append(f"Active workspace: [cyan]{ws_name}[/cyan] [dim](profile={ws_profile})[/dim]")
         elif session_env:
             panel_lines.append(f"Active environment: [cyan]{session_env}[/cyan]")
         panel_lines.append(f"Timestamp: [dim]{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}[/dim]")
@@ -544,13 +541,11 @@ def _render_session_status() -> None:
 
     if ws_name:
         console.print(
-            f"  [bold green]★[/bold green] Workspace: [bold cyan]{ws_name}[/bold cyan]"
-            f"  [dim]profile={ws_profile}[/dim]"
+            f"  [bold green]★[/bold green] Workspace: [bold cyan]{ws_name}[/bold cyan]  [dim]profile={ws_profile}[/dim]"
         )
     elif session_env:
         console.print(
-            f"  [yellow]▸[/yellow] Environment: [bold]{session_env}[/bold]"
-            f"  [dim](legacy — no workspace selected)[/dim]"
+            f"  [yellow]▸[/yellow] Environment: [bold]{session_env}[/bold]  [dim](legacy — no workspace selected)[/dim]"
         )
     else:
         console.print("  [dim]No active workspace or environment[/dim]")

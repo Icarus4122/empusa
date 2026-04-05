@@ -152,9 +152,7 @@ class TestBuildEnvWorkspace:
     @patch("empusa.cli_scan.run_nmap", side_effect=_fake_run_nmap)
     @patch("empusa.cli_scan.check_tool_exists", return_value=True)
     @patch("empusa.cli_scan.Confirm.ask", return_value=False)
-    def test_returns_layout(
-        self, _confirm: Any, _tool: Any, _nmap: Any, htb_ws: Path
-    ) -> None:
+    def test_returns_layout(self, _confirm: Any, _tool: Any, _nmap: Any, htb_ws: Path) -> None:
         from empusa.cli_scan import build_env
 
         layout = build_env("box1", ["10.10.10.1"], workspace_path=htb_ws)
@@ -164,9 +162,7 @@ class TestBuildEnvWorkspace:
     @patch("empusa.cli_scan.run_nmap", side_effect=_fake_run_nmap)
     @patch("empusa.cli_scan.check_tool_exists", return_value=True)
     @patch("empusa.cli_scan.Confirm.ask", return_value=False)
-    def test_scan_dirs_under_workspace_scans(
-        self, _confirm: Any, _tool: Any, _nmap: Any, htb_ws: Path
-    ) -> None:
+    def test_scan_dirs_under_workspace_scans(self, _confirm: Any, _tool: Any, _nmap: Any, htb_ws: Path) -> None:
         from empusa.cli_scan import build_env
 
         layout = build_env("box1", ["10.10.10.1"], workspace_path=htb_ws)
@@ -176,9 +172,7 @@ class TestBuildEnvWorkspace:
     @patch("empusa.cli_scan.run_nmap", side_effect=_fake_run_nmap)
     @patch("empusa.cli_scan.check_tool_exists", return_value=True)
     @patch("empusa.cli_scan.Confirm.ask", return_value=False)
-    def test_creds_under_workspace_creds(
-        self, _confirm: Any, _tool: Any, _nmap: Any, htb_ws: Path
-    ) -> None:
+    def test_creds_under_workspace_creds(self, _confirm: Any, _tool: Any, _nmap: Any, htb_ws: Path) -> None:
         from empusa.cli_scan import build_env
 
         layout = build_env("box1", ["10.10.10.1"], workspace_path=htb_ws)
@@ -188,9 +182,7 @@ class TestBuildEnvWorkspace:
     @patch("empusa.cli_scan.run_nmap", side_effect=_fake_run_nmap)
     @patch("empusa.cli_scan.check_tool_exists", return_value=True)
     @patch("empusa.cli_scan.Confirm.ask", return_value=False)
-    def test_commands_log_under_workspace_logs(
-        self, _confirm: Any, _tool: Any, _nmap: Any, htb_ws: Path
-    ) -> None:
+    def test_commands_log_under_workspace_logs(self, _confirm: Any, _tool: Any, _nmap: Any, htb_ws: Path) -> None:
         from empusa.cli_scan import build_env
 
         layout = build_env("box1", ["10.10.10.1"], workspace_path=htb_ws)
@@ -223,9 +215,7 @@ class TestBuildEnvWorkspace:
     @patch("empusa.cli_scan.run_nmap", side_effect=_fake_run_nmap)
     @patch("empusa.cli_scan.check_tool_exists", return_value=True)
     @patch("empusa.cli_scan.Confirm.ask", return_value=False)
-    def test_pre_build_fires_before_scan(
-        self, _confirm: Any, _tool: Any, _nmap: Any, htb_ws: Path
-    ) -> None:
+    def test_pre_build_fires_before_scan(self, _confirm: Any, _tool: Any, _nmap: Any, htb_ws: Path) -> None:
         from empusa.cli_scan import build_env
 
         captured: list[tuple[str, dict[str, Any]]] = []
@@ -243,9 +233,7 @@ class TestBuildEnvWorkspace:
     @patch("empusa.cli_scan.run_nmap", side_effect=_fake_run_nmap)
     @patch("empusa.cli_scan.check_tool_exists", return_value=True)
     @patch("empusa.cli_scan.Confirm.ask", return_value=False)
-    def test_os_rename_under_scans(
-        self, _confirm: Any, _tool: Any, _nmap: Any, htb_ws: Path
-    ) -> None:
+    def test_os_rename_under_scans(self, _confirm: Any, _tool: Any, _nmap: Any, htb_ws: Path) -> None:
         """After scanning, IP dirs should be renamed to {ip}-{os} under scans/."""
         from empusa.cli_scan import build_env
 
@@ -259,9 +247,7 @@ class TestBuildEnvWorkspace:
     @patch("empusa.cli_scan.run_nmap", side_effect=_fake_run_nmap)
     @patch("empusa.cli_scan.check_tool_exists", return_value=True)
     @patch("empusa.cli_scan.Confirm.ask", return_value=False)
-    def test_workspace_metadata_untouched(
-        self, _confirm: Any, _tool: Any, _nmap: Any, htb_ws: Path
-    ) -> None:
+    def test_workspace_metadata_untouched(self, _confirm: Any, _tool: Any, _nmap: Any, htb_ws: Path) -> None:
         """Build should not overwrite workspace metadata."""
         from empusa.cli_scan import build_env
 
@@ -373,9 +359,7 @@ class TestFullWorkspaceBuildFlow:
     @patch("empusa.cli_scan.run_nmap", side_effect=_fake_run_nmap)
     @patch("empusa.cli_scan.check_tool_exists", return_value=True)
     @patch("empusa.cli_scan.Confirm.ask", return_value=False)
-    def test_full_htb_flow(
-        self, _confirm: Any, _tool: Any, _nmap: Any, tmp_path: Path
-    ) -> None:
+    def test_full_htb_flow(self, _confirm: Any, _tool: Any, _nmap: Any, tmp_path: Path) -> None:
         from empusa.cli_scan import build_env
 
         # 1. Create workspace
