@@ -125,10 +125,10 @@ def _artifact_display_name(artifact: Path | None, kind: str) -> str:
     - directory -> ``<dirname>/``
     - script    -> ``<filename>``
     - file      -> ``<filename>``
-    - none      -> ``"—"``
+    - none      -> ``"-"``
     """
     if artifact is None or kind == "none":
-        return "—"
+        return "-"
     if kind == "directory":
         return f"{artifact.name}/"
     return artifact.name
@@ -187,7 +187,7 @@ def _open_directory(path: Path) -> bool:
             return result.returncode == 0
         # Linux / other POSIX
         if not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY"):
-            return False  # headless — no GUI to launch into
+            return False  # headless - no GUI to launch into
         opener = shutil.which("xdg-open")
         if not opener:
             return False
@@ -238,13 +238,13 @@ def list_modules() -> list[dict[str, Any]]:
         if not item.is_dir():
             continue
         if not manifest.exists():
-            # Not a module directory — skip silently
+            # Not a module directory - skip silently
             continue
         try:
             data: dict[str, Any] = json.loads(manifest.read_text(encoding="utf-8"))
         except json.JSONDecodeError as exc:
             # LOUD: surface parse failures in normal mode, not just verbose
-            msg = f"[yellow]\u26a0[/yellow] Skipping [bold]{item.name}[/bold]: bad module.json — {exc}"
+            msg = f"[yellow]\u26a0[/yellow] Skipping [bold]{item.name}[/bold]: bad module.json - {exc}"
             log_info(msg, "yellow")
             skipped.append(item.name)
             continue
@@ -483,7 +483,7 @@ def module_info(
         table.add_row("Source", art["source_path"])
         table.add_row("Build Dir", art["build_dir"])
         table.add_row("Artifact", art_display)
-        table.add_row("Artifact Path", art["artifact_path"] or "[dim]—[/dim]")
+        table.add_row("Artifact Path", art["artifact_path"] or "[dim]-[/dim]")
         table.add_row("Artifact Status", art_status)
         if art["last_modified"]:
             table.add_row("Last Modified", art["last_modified"])
@@ -544,10 +544,10 @@ def module_info(
                 lines_out.append("")
                 console.print("\n".join(lines_out))
             else:
-                log_info("  Module not built yet — compile first.", "yellow")
+                log_info("  Module not built yet - compile first.", "yellow")
 
         elif action == "3":
-            # Open build folder — with graceful degradation
+            # Open build folder - with graceful degradation
             build_path = Path(art["build_dir"])
             build_path.mkdir(parents=True, exist_ok=True)
             if _open_directory(build_path):
@@ -560,7 +560,7 @@ def module_info(
             # Source preview
             source_file = mod_path / mod.get("source", "")
             if source_file.exists() and source_file.is_file():
-                render_group_heading(f"Source Preview — {source_file.name}", "bold cyan")
+                render_group_heading(f"Source Preview - {source_file.name}", "bold cyan")
                 raw = source_file.read_text(encoding="utf-8", errors="replace").splitlines()
                 preview = "\n".join(raw[:40])
                 if len(raw) > 40:
@@ -869,7 +869,7 @@ def compile_module(
             log_error(f"Compiler '{compiler_bin}' not found and no alternatives detected for {lang}")
             return False
     elif not compiler_bin and lang in COMPILER_MAP:
-        # No explicit compiler — verify at least one is on PATH
+        # No explicit compiler - verify at least one is on PATH
         if not detect_compilers().get(lang):
             log_error(f"No compiler found for '{lang}'. Checked: {', '.join(COMPILER_MAP.get(lang, []))}")
             return False
@@ -910,7 +910,7 @@ def compile_module(
             # -- Artifact resolution ----------------------------------
             artifact_found = output_path.exists()
 
-            # Interpreted languages: "compile" is validation only —
+            # Interpreted languages: "compile" is validation only -
             # copy source into build/ as the deployable artifact.
             if not artifact_found and lang in INTERPRETED_LANGUAGES:
                 shutil.copy2(str(source_file), str(output_path))
@@ -1505,7 +1505,7 @@ def module_workshop(
             content = _detect_compilers_render()
 
         elif choice == "7":
-            # Open modules folder — with graceful degradation
+            # Open modules folder - with graceful degradation
             MODULES_DIR.mkdir(parents=True, exist_ok=True)
             if _open_directory(MODULES_DIR):
                 log_success(f"[+] Opened: {MODULES_DIR}")

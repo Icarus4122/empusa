@@ -281,7 +281,7 @@ class TestScopedServicesFilesystem:
             scoped.artifact.write_bytes("binary.dat", b"\x00\x01")
 
     def test_exists_always_allowed(self, make_services) -> None:
-        """exists() is read-only — no permission required."""
+        """exists() is read-only - no permission required."""
         svc = make_services()
         scoped = ScopedServices(svc, [], "no_fs")
         scoped.artifact.exists("anything.txt")

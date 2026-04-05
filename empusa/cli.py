@@ -545,7 +545,7 @@ def _render_session_status() -> None:
         )
     elif session_env:
         console.print(
-            f"  [yellow]▸[/yellow] Environment: [bold]{session_env}[/bold]  [dim](legacy — no workspace selected)[/dim]"
+            f"  [yellow]▸[/yellow] Environment: [bold]{session_env}[/bold]  [dim](legacy - no workspace selected)[/dim]"
         )
     else:
         console.print("  [dim]No active workspace or environment[/dim]")
@@ -634,7 +634,7 @@ def main_menu() -> None:
             if check_dir.exists():
                 # Re-detect so the fresh environment appears in the table
                 envs = _detect_environments()
-                render_screen(f"Post-Build — {env_name}")
+                render_screen(f"Post-Build - {env_name}")
                 if envs:
                     _show_environments(envs)
                 summarize_hosts(env_name, scans_dir=layout.scans_dir if layout else None)

@@ -415,7 +415,7 @@ class _GatedArtifact:
         return self._artifact.write_bytes(relative_path, data)
 
     def exists(self, relative_path: str) -> bool:
-        # Read-only check — no permission needed
+        # Read-only check - no permission needed
         return self._artifact.exists(relative_path)
 
 

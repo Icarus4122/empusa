@@ -1,4 +1,4 @@
-"""Tests for empusa.workspace — core workspace lifecycle functions.
+"""Tests for empusa.workspace - core workspace lifecycle functions.
 
 Covers:
 - create_workspace with htb, research, build, internal profiles
@@ -65,7 +65,7 @@ class TestSanitize:
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  create_workspace — htb profile
+#  create_workspace - htb profile
 # ═══════════════════════════════════════════════════════════════════
 
 
@@ -129,7 +129,7 @@ class TestCreateWorkspaceHtb:
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  create_workspace — research profile
+#  create_workspace - research profile
 # ═══════════════════════════════════════════════════════════════════
 
 
@@ -156,7 +156,7 @@ class TestCreateWorkspaceResearch:
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  create_workspace — build & internal profiles
+#  create_workspace - build & internal profiles
 # ═══════════════════════════════════════════════════════════════════
 
 
@@ -187,7 +187,7 @@ class TestCreateWorkspaceInternal:
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  create_workspace — edge cases
+#  create_workspace - edge cases
 # ═══════════════════════════════════════════════════════════════════
 
 
@@ -214,7 +214,7 @@ class TestCreateWorkspaceEdgeCases:
         assert result.templates_missing == PROFILES["htb"]["templates"]
 
     def test_partial_templates(self, tmp_path: Path) -> None:
-        """Only some template files exist — seeded list and missing list both populated."""
+        """Only some template files exist - seeded list and missing list both populated."""
         tpl = _make_templates_dir(tmp_path, ["recon.md", "target.md"])
         result = create_workspace("t", profile="htb", root=tmp_path, templates_dir=tpl)
         assert "recon.md" in result.templates_seeded
@@ -298,7 +298,7 @@ class TestListWorkspaces:
 
     def test_skips_non_workspace_dirs(self, tmp_path: Path) -> None:
         create_workspace("ws1", profile="htb", root=tmp_path)
-        # Create a dir without metadata — should be ignored
+        # Create a dir without metadata - should be ignored
         (tmp_path / "random-dir").mkdir()
         result = list_workspaces(tmp_path)
         assert len(result) == 1
@@ -322,7 +322,7 @@ class TestListWorkspaces:
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  ensure_build_layout — flat mode (no workspace)
+#  ensure_build_layout - flat mode (no workspace)
 # ═══════════════════════════════════════════════════════════════════
 
 
@@ -367,7 +367,7 @@ class TestBuildLayoutFlat:
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  ensure_build_layout — workspace-nested mode
+#  ensure_build_layout - workspace-nested mode
 # ═══════════════════════════════════════════════════════════════════
 
 

@@ -67,7 +67,7 @@ def cmd_workspace_init(
     *,
     emit_fn: EmitFn,
 ) -> int:
-    """``empusa workspace init`` — create a profile-aware workspace."""
+    """``empusa workspace init`` - create a profile-aware workspace."""
     name: str = args.name
     profile: str = args.profile
     root = Path(args.root) if args.root else DEFAULT_WORKSPACE_ROOT
@@ -161,7 +161,7 @@ def cmd_workspace_init(
 
 
 def cmd_workspace_list(args: argparse.Namespace) -> int:
-    """``empusa workspace list`` — list all workspaces under root."""
+    """``empusa workspace list`` - list all workspaces under root."""
     root = Path(args.root) if args.root else DEFAULT_WORKSPACE_ROOT
 
     workspaces = list_workspaces(root)
@@ -180,7 +180,7 @@ def cmd_workspace_list(args: argparse.Namespace) -> int:
     active_name = get_active_workspace()["name"]
 
     for ws in workspaces:
-        seeded = ", ".join(ws.get("templates_seeded", [])) or "—"
+        seeded = ", ".join(ws.get("templates_seeded", [])) or "-"
         ws_name = ws.get("name", "?")
         is_active = ws_name == active_name and active_name != ""
         marker = Text("★ active", style="bold green") if is_active else Text("")
@@ -209,7 +209,7 @@ def cmd_workspace_select(
     *,
     emit_fn: EmitFn,
 ) -> int:
-    """``empusa workspace select`` — activate an existing workspace."""
+    """``empusa workspace select`` - activate an existing workspace."""
     name: str = args.name
     root = Path(args.root) if args.root else DEFAULT_WORKSPACE_ROOT
     ws_path = root / name
@@ -248,7 +248,7 @@ def cmd_workspace_select(
 
 
 def cmd_workspace_status(args: argparse.Namespace) -> int:
-    """``empusa workspace status`` — show metadata for a workspace."""
+    """``empusa workspace status`` - show metadata for a workspace."""
     name: str = args.name
     root = Path(args.root) if args.root else DEFAULT_WORKSPACE_ROOT
     ws_path = root / name
@@ -286,7 +286,7 @@ def cmd_workspace_status(args: argparse.Namespace) -> int:
     lines.append(f"  [bold]{'Path':<14}[/bold] {meta.get('path', '?')}")
     lines.append(f"  [bold]{'Created':<14}[/bold] {meta.get('created_at', '?')}")
     seeded = meta.get("templates_seeded", [])
-    lines.append(f"  [bold]{'Templates':<14}[/bold] {', '.join(seeded) if seeded else '—'}")
+    lines.append(f"  [bold]{'Templates':<14}[/bold] {', '.join(seeded) if seeded else '-'}")
     lines.append(f"  [bold]{'Status':<14}[/bold] {status_line}")
 
     # -- Directory listing with file counts --------------------------

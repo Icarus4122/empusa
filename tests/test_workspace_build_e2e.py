@@ -2,7 +2,7 @@
 
 Verifies that workspaces created via workspace.py integrate correctly
 with the build flow in cli_scan.py.  Each test is focused on a single
-concern — no giant integration tests.
+concern - no giant integration tests.
 
 All nmap/OS-detection calls are mocked; no Docker or network required.
 """
@@ -104,12 +104,12 @@ class TestWorkspaceBuildLayout:
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  Standalone (flat) build layout — legacy behavio
+#  Standalone (flat) build layout - legacy behavio
 # ═══════════════════════════════════════════════════════════════════
 
 
 class TestStandaloneBuildLayout:
-    """ensure_build_layout WITHOUT workspace_path — flat layout."""
+    """ensure_build_layout WITHOUT workspace_path - flat layout."""
 
     def test_flat_scans_at_root(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(tmp_path)
@@ -138,12 +138,12 @@ class TestStandaloneBuildLayout:
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  build_env — workspace mode (mocked nmap)
+#  build_env - workspace mode (mocked nmap)
 # ═══════════════════════════════════════════════════════════════════
 
 
 class TestBuildEnvWorkspace:
-    """build_env() with workspace_path — full flow with mocked scanning."""
+    """build_env() with workspace_path - full flow with mocked scanning."""
 
     @pytest.fixture()
     def htb_ws(self, tmp_path: Path) -> Path:
@@ -239,7 +239,7 @@ class TestBuildEnvWorkspace:
 
         build_env("box1", ["10.10.10.1"], workspace_path=htb_ws)
         scans = htb_ws / "scans"
-        # The fake nmap output contains "Apache" → detect_os returns "Linux"
+        # The fake nmap output contains "Apache" -> detect_os returns "Linux"
         renamed = list(scans.iterdir())
         names = [d.name for d in renamed if d.is_dir()]
         assert any("10.10.10.1-" in n for n in names)
@@ -258,12 +258,12 @@ class TestBuildEnvWorkspace:
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  build_env — standalone mode (mocked nmap)
+#  build_env - standalone mode (mocked nmap)
 # ═══════════════════════════════════════════════════════════════════
 
 
 class TestBuildEnvStandalone:
-    """build_env() WITHOUT workspace_path — legacy flat behaviour."""
+    """build_env() WITHOUT workspace_path - legacy flat behaviour."""
 
     @patch("empusa.cli_scan.run_nmap", side_effect=_fake_run_nmap)
     @patch("empusa.cli_scan.check_tool_exists", return_value=True)
@@ -316,7 +316,7 @@ class TestBuildEnvStandalone:
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  build_env — validation / abort paths
+#  build_env - validation / abort paths
 # ═══════════════════════════════════════════════════════════════════
 
 
@@ -349,7 +349,7 @@ class TestBuildEnvValidation:
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  Full flow: workspace create → activate → build → verify
+#  Full flow: workspace create -> activate -> build -> verify
 # ═══════════════════════════════════════════════════════════════════
 
 
@@ -418,7 +418,7 @@ class TestFullWorkspaceBuildFlow:
     def test_full_standalone_flow(
         self, _confirm: Any, _tool: Any, _nmap: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Legacy flat build — no workspace involved."""
+        """Legacy flat build - no workspace involved."""
         from empusa.cli_scan import build_env
 
         monkeypatch.chdir(tmp_path)

@@ -205,7 +205,7 @@ class TestArtifactDisplayName:
     def test_none_artifact(self) -> None:
         from empusa.cli_modules import _artifact_display_name
 
-        assert _artifact_display_name(None, "none") == "—"
+        assert _artifact_display_name(None, "none") == "-"
 
     def test_directory(self, tmp_path: Path) -> None:
         from empusa.cli_modules import _artifact_display_name
@@ -401,7 +401,7 @@ class TestGetModuleArtifactInfo:
         info = get_module_artifact_info(mod)
         assert info["artifact_exists"] is False
         assert info["artifact_kind"] == "none"
-        assert info["artifact_display_name"] == "—"
+        assert info["artifact_display_name"] == "-"
 
     def test_with_artifact(self, tmp_path: Path) -> None:
         from empusa.cli_modules import get_module_artifact_info

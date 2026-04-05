@@ -1,4 +1,4 @@
-"""Tests for empusa.cli_scan — validators, OS detection, host summarization."""
+"""Tests for empusa.cli_scan - validators, OS detection, host summarization."""
 
 from __future__ import annotations
 

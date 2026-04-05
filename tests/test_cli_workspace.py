@@ -1,4 +1,4 @@
-"""Tests for empusa.cli_workspace — non-interactive workspace CLI commands.
+"""Tests for empusa.cli_workspace - non-interactive workspace CLI commands.
 
 Covers:
 - cmd_workspace_init: htb, research, invalid profile, templates, --set-active
@@ -7,7 +7,7 @@ Covers:
 - cmd_workspace_status: metadata display, active indicators
 
 All commands are tested via direct function calls with synthetic
-argparse.Namespace objects — no interactive menus, no Docker.
+argparse.Namespace objects - no interactive menus, no Docker.
 """
 
 from __future__ import annotations

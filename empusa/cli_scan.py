@@ -605,7 +605,7 @@ def build_env(
         return None
 
     # When running inside an existing workspace the directory tree was
-    # created intentionally — skip the "already exists" guard.
+    # created intentionally - skip the "already exists" guard.
     if workspace_path is None:
         check_dir = Path(env_name).absolute()
         if (

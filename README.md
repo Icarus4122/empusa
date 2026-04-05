@@ -336,7 +336,7 @@ Shows profile, creation date, seeded templates, directory listing, and active in
 | `post_workspace_init` | After workspace is fully scaffolded |
 | `on_workspace_select` | When a workspace is activated |
 
-Plugins can subscribe to these events to react to workspace changes — for example, initializing a git repo, copying extra templates, or registering the workspace with an external system.
+Plugins can subscribe to these events to react to workspace changes - for example, initializing a git repo, copying extra templates, or registering the workspace with an external system.
 
 ### Session state
 
@@ -716,7 +716,7 @@ Representative examples include:
 
 | Flag | Type | Default | Description |
 | --- | --- | --- | --- |
-| `--version` | boolean | — | Print the current version |
+| `--version` | boolean | - | Print the current version |
 | `-v`, `--verbose` | boolean | off | Enable verbose output |
 | `-q`, `--quiet` | boolean | off | Suppress non-essential output |
 | `--dry-run` | boolean | off | Show intended actions without executing |

@@ -2,7 +2,7 @@
 Empusa - Workspace Lifecycle
 
 Profile-aware workspace creation, template seeding, and metadata
-management.  Pure file-system operations — no Docker, no containe
+management.  Pure file-system operations - no Docker, no containe
 orchestration.
 
 Profiles define the subdirectory skeleton and which templates are
@@ -139,7 +139,7 @@ def create_workspace(
     Parameters
     ----------
     name:
-        Workspace name (used as directory name — sanitised internally).
+        Workspace name (used as directory name - sanitised internally).
     profile:
         One of the keys in :data:`PROFILES`.
     root:
@@ -152,7 +152,7 @@ def create_workspace(
         Informational flag carried through to the result / events;
         the caller decides what "active" means.
     template_vars:
-        Optional ``{{KEY}}`` → ``value`` replacements applied when
+        Optional ``{{KEY}}`` -> ``value`` replacements applied when
         seeding templates.
 
     Returns
@@ -197,7 +197,7 @@ def create_workspace(
 
     if expected_templates and templates_dir is not None:
         if not templates_dir.is_dir():
-            # Caller supplied a path that doesn't exist — every
+            # Caller supplied a path that doesn't exist - every
             # expected template counts as missing.
             missing = list(expected_templates)
         else:
@@ -217,7 +217,7 @@ def create_workspace(
                 seeded.append(tpl_name)
                 created.append(str(dst))
     elif expected_templates:
-        # No templates_dir supplied — nothing to seed, but note what
+        # No templates_dir supplied - nothing to seed, but note what
         # *would* have been seeded so the caller can decide.
         missing = list(expected_templates)
 
@@ -275,7 +275,7 @@ class BuildLayout:
 
     Returned by :func:`ensure_build_layout` so that callers know
     exactly where per-IP scan directories, credential tracker files,
-    and the command log live — regardless of whether the build runs
+    and the command log live - regardless of whether the build runs
     inside a workspace or as a standalone flat layout.
     """
 
@@ -298,7 +298,7 @@ def ensure_build_layout(
     scan directories are placed under its ``scans/`` subdirectory (if
     present), credential tracker files under ``creds/``, and the
     command log under ``logs/``.  Otherwise a flat layout rooted at
-    *env_name* (resolved against CWD) is created — preserving the
+    *env_name* (resolved against CWD) is created - preserving the
     original ``build_env()`` behaviour.
 
     Directories and files are created idempotently (``exist_ok``).

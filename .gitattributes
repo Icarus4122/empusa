@@ -41,7 +41,7 @@ Makefile text
 makefile text
 Dockerfile text
 
-# Binary — do not diff
+# Binary - do not diff
 *.exe binary
 *.dll binary
 *.so binary
