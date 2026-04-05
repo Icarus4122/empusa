@@ -782,7 +782,7 @@ def init_framework() -> None:
     set_event_bus(event_bus)
 
     # Layer 5 - Command runner (wired to bus for pre/post_command events)
-    def _bus_emit_void(evt: str, ctx: dict[str, Any]) -> None:
+    def _bus_emit_void(evt: str, ctx: dict[str, Any] | None = None) -> None:
         if event_bus is not None:
             event_bus.emit_legacy(evt, ctx)
 
@@ -967,7 +967,7 @@ def _cmd_workspace(args: argparse.Namespace, parser: argparse.ArgumentParser) ->
 
     _init_framework()
 
-    def _emit(evt: str, ctx: dict[str, Any]) -> None:
+    def _emit(evt: str, ctx: dict[str, Any] | None = None) -> None:
         if event_bus is not None:
             event_bus.emit_legacy(evt, ctx)
 

@@ -244,10 +244,9 @@ def init_hook_dirs() -> None:
 def run_hooks(event: str, context: dict[str, Any] | None = None) -> None:
     """Emit an event through the bus (legacy hooks + plugins).
 
-    This is the backward-compatible wrapper. All existing call sites
-    continue to work unchanged. The bus handles:
-    - Layer 2: legacy run(context) hook scripts
-    - Layer 3: plugin dispatch (if PluginManager is attached)
+    The bus canonicalises the event name + context dict into a typed
+    :class:`EmpusaEvent` dataclass via :func:`make_event` internally,
+    so callers can keep using the simple ``(name, dict)`` interface.
 
     Args:
         event: One of the HOOK_EVENTS names.

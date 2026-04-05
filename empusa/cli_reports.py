@@ -592,15 +592,12 @@ def report_builder(
             next_sec += 1
 
     if run_hooks_fn is not None:
-        run_hooks_fn(
-            "pre_report_write",
-            {
-                "env_name": env_name,
-                "env_path": str(env_path),
-                "standalone_count": len(standalone),
-                "ad_count": len(ad_set),
-            },
-        )
+        run_hooks_fn("pre_report_write", {
+            "env_name": env_name,
+            "env_path": str(env_path),
+            "standalone_count": len(standalone),
+            "ad_count": len(ad_set),
+        })
 
     # --- Write report file ---
     report_text = "\n".join(md)
@@ -624,15 +621,12 @@ def report_builder(
             log_info(f"  Auto-filled loot/proof data for {filled_loot} host(s)", "green")
         log_info("\n  Fill in <!-- comment --> placeholders with your findings.", "yellow")
         if run_hooks_fn is not None:
-            run_hooks_fn(
-                "on_report_generated",
-                {
-                    "report_path": str(report_path),
-                    "env_name": env_name,
-                    "env_path": str(env_path),
-                    "standalone_count": len(standalone),
-                    "ad_count": len(ad_set),
-                },
-            )
+            run_hooks_fn("on_report_generated", {
+                "report_path": str(report_path),
+                "env_name": env_name,
+                "env_path": str(env_path),
+                "standalone_count": len(standalone),
+                "ad_count": len(ad_set),
+            })
     except Exception as e:
         log_error(f"Error writing report: {e}")

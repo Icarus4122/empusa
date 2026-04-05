@@ -31,7 +31,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
 
-from empusa.events import EVENT_MAP, EmpusaEvent
+from empusa.events import EVENT_MAP, EmpusaEvent, make_event
 
 if TYPE_CHECKING:
     from empusa.plugins import PluginManager
@@ -143,28 +143,14 @@ class EventBus:
     def emit_legacy(self, event_name: str, context: dict[str, Any] | None = None) -> list[dict[str, Any]]:
         """Emit using a plain event-name string + dict (backward-compat).
 
-        Constructs the appropriate typed event if one exists in EVENT_MAP,
-        otherwise wraps in a base ``EmpusaEvent``.
+        Constructs the appropriate typed event via :func:`make_event`,
+        then delegates to :meth:`emit`.
         """
         ctx = context.copy() if context else {}
-        ctx.setdefault("event", event_name)
         ctx.setdefault("timestamp", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         ctx.setdefault("session_env", self._session_env_fn())
 
-        event_cls = EVENT_MAP.get(event_name, EmpusaEvent)
-        # Build the dataclass from the dict, ignoring unknown keys
-        import dataclasses
-
-        valid_fields = {f.name for f in dataclasses.fields(event_cls)}
-        filtered = {k: v for k, v in ctx.items() if k in valid_fields}
-        try:
-            event_obj = event_cls(**filtered)
-        except TypeError:
-            # Fallback - build base event
-            event_obj = EmpusaEvent(
-                event=event_name, timestamp=ctx.get("timestamp", ""), session_env=ctx.get("session_env", "")
-            )
-
+        event_obj = make_event(event_name, **ctx)
         return self.emit(event_obj)
 
     # -- Last results accessor ---------------------------------------

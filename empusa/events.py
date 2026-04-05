@@ -10,7 +10,7 @@ new-style plugins receive the dataclass instance directly.
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from datetime import datetime
 from pathlib import Path
 from typing import Any, cast
@@ -298,3 +298,35 @@ EVENT_MAP: dict[str, type[EmpusaEvent]] = {
 
 # All known event names (superset of the original HOOK_EVENTS)
 ALL_EVENTS: list[str] = list(EVENT_MAP.keys())
+
+
+# -- Canonical factory -----------------------------------------------
+
+
+def make_event(event_name: str, **kwargs: Any) -> EmpusaEvent:
+    """Canonical factory for constructing a typed event by name.
+
+    Resolves *event_name* via :data:`EVENT_MAP` (falling back to
+    :class:`EmpusaEvent`) and builds the dataclass from *kwargs*.
+    Keys that do not correspond to a valid field on the target class
+    are silently dropped for backward compatibility with callers that
+    may forward extra context.
+
+    Raises :class:`ValueError` if *event_name* is empty.
+    """
+    if not event_name:
+        raise ValueError("event_name must not be empty")
+    cls = EVENT_MAP.get(event_name, EmpusaEvent)
+    kwargs["event"] = event_name
+    valid = {f.name for f in fields(cls)}
+    filtered = {k: v for k, v in kwargs.items() if k in valid}
+    try:
+        return cls(**filtered)
+    except TypeError:
+        # Last-resort fallback: build a bare base event so the bus
+        # never raises on a malformed legacy dict.
+        return EmpusaEvent(
+            event=event_name,
+            timestamp=str(kwargs.get("timestamp", "")),
+            session_env=str(kwargs.get("session_env", "")),
+        )

@@ -278,14 +278,11 @@ class CommandRunner:
 
         # Fire pre-command event
         if self._emit:
-            self._emit(
-                "pre_command",
-                {
-                    "command": cmd_first,
-                    "args": cmd_rest,
-                    "working_dir": working_dir,
-                },
-            )
+            self._emit("pre_command", {
+                "command": cmd_first,
+                "args": cmd_rest,
+                "working_dir": working_dir,
+            })
 
         if self._dry_run:
             self._log.info(f"[DRY-RUN] {cmd_str}", "dim")
@@ -311,16 +308,13 @@ class CommandRunner:
 
         # Fire post-command event
         if self._emit:
-            self._emit(
-                "post_command",
-                {
-                    "command": cmd_first,
-                    "args": cmd_rest,
-                    "return_code": result.returncode,
-                    "stdout": (result.stdout or "")[:2048],
-                    "stderr": (result.stderr or "")[:2048],
-                },
-            )
+            self._emit("post_command", {
+                "command": cmd_first,
+                "args": cmd_rest,
+                "return_code": result.returncode,
+                "stdout": (result.stdout or "")[:2048],
+                "stderr": (result.stderr or "")[:2048],
+            })
 
         return result
 

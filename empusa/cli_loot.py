@@ -424,18 +424,15 @@ def loot_tracker(
             log_success("[+] Loot entry added and saved!")
 
             if run_hooks_fn is not None:
-                run_hooks_fn(
-                    "on_loot_add",
-                    {
-                        "host": host,
-                        "cred_type": cred_type,
-                        "username": username,
-                        "secret": secret,
-                        "source": source,
-                        "env_name": env_name,
-                        "env_path": str(env_path),
-                    },
-                )
+                run_hooks_fn("on_loot_add", {
+                    "host": host,
+                    "cred_type": cred_type,
+                    "username": username,
+                    "secret": secret,
+                    "source": source,
+                    "env_name": env_name,
+                    "env_path": str(env_path),
+                })
 
             if cred_type == "ntlm":
                 log_info("  Tip: nxc smb <targets> -u <user> -H '<hash>'", "yellow")

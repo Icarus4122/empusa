@@ -91,15 +91,12 @@ def cmd_workspace_init(
         return 1
 
     # -- pre_workspace_init event ------------------------------------
-    emit_fn(
-        "pre_workspace_init",
-        {
-            "workspace_name": name,
-            "workspace_root": str(root),
-            "profile": profile,
-            "set_active": set_active,
-        },
-    )
+    emit_fn("pre_workspace_init", {
+        "workspace_name": name,
+        "workspace_root": str(root),
+        "profile": profile,
+        "set_active": set_active,
+    })
 
     try:
         result = create_workspace(
@@ -135,17 +132,14 @@ def cmd_workspace_init(
         log_verbose(f"    {p}", "dim")
 
     # -- post_workspace_init event -----------------------------------
-    emit_fn(
-        "post_workspace_init",
-        {
-            "workspace_name": result.name,
-            "workspace_root": result.workspace_root,
-            "workspace_path": result.workspace_path,
-            "profile": profile,
-            "set_active": set_active,
-            "created_paths": result.created_paths,
-        },
-    )
+    emit_fn("post_workspace_init", {
+        "workspace_name": result.name,
+        "workspace_root": result.workspace_root,
+        "workspace_path": result.workspace_path,
+        "profile": profile,
+        "set_active": set_active,
+        "created_paths": result.created_paths,
+    })
 
     # Optionally mark as active session env
     if set_active:
@@ -234,15 +228,12 @@ def cmd_workspace_select(
     log_action("Workspace Select", name)
     log_success(f"[+] Active workspace: {name} (profile={meta.get('profile', '?')})")
 
-    emit_fn(
-        "on_workspace_select",
-        {
-            "workspace_name": meta.get("name", name),
-            "workspace_root": str(root),
-            "workspace_path": str(ws_path),
-            "profile": meta.get("profile", ""),
-        },
-    )
+    emit_fn("on_workspace_select", {
+        "workspace_name": meta.get("name", name),
+        "workspace_root": str(root),
+        "workspace_path": str(ws_path),
+        "profile": meta.get("profile", ""),
+    })
 
     return 0
 
