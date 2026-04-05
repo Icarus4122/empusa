@@ -138,6 +138,111 @@ class TestStandaloneBuildLayout:
 
 
 # ═══════════════════════════════════════════════════════════════════
+#  Contract pinning: workspace vs standalone layout divergence
+# ═══════════════════════════════════════════════════════════════════
+
+
+class TestLayoutDivergencePinned:
+    """Assert that workspace and standalone layouts are structurally different.
+
+    This is a contract test - if the two modes converge silently the
+    test fails, forcing an explicit decision.
+    """
+
+    def test_workspace_separates_scans_creds_logs(self, tmp_path: Path) -> None:
+        ws = _create_htb_workspace(tmp_path)
+        layout = ensure_build_layout("box1", ["10.10.10.1"], workspace_path=ws)
+        dirs = {layout.scans_dir, layout.users_file.parent, layout.commands_log.parent}
+        assert len(dirs) == 3, "workspace layout must separate scans, creds, and logs"
+
+    def test_standalone_collapses_to_single_dir(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.chdir(tmp_path)
+        layout = ensure_build_layout("flat", ["10.10.10.1"])
+        dirs = {layout.scans_dir, layout.users_file.parent, layout.commands_log.parent}
+        assert len(dirs) == 1, "standalone layout must collapse to a single dir"
+
+    def test_workspace_has_metadata(self, tmp_path: Path) -> None:
+        ws = _create_htb_workspace(tmp_path)
+        assert (ws / METADATA_FILENAME).is_file()
+
+    def test_standalone_has_no_metadata(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.chdir(tmp_path)
+        layout = ensure_build_layout("flat", ["10.10.10.1"])
+        assert not (layout.base_dir / METADATA_FILENAME).exists()
+
+    def test_workspace_vs_standalone_creds_differ(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        ws = _create_htb_workspace(tmp_path, name="wsbox")
+        ws_layout = ensure_build_layout("wsbox", ["10.10.10.1"], workspace_path=ws)
+
+        flat_root = tmp_path / "flat_area"
+        flat_root.mkdir()
+        monkeypatch.chdir(flat_root)
+        flat_layout = ensure_build_layout("flat", ["10.10.10.1"])
+
+        # Workspace creds are under a dedicated subdir; standalone are at root
+        assert ws_layout.users_file.parent.name == "creds"
+        assert flat_layout.users_file.parent == flat_layout.base_dir
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  Contract pinning: build event payload completeness
+# ═══════════════════════════════════════════════════════════════════
+
+
+class TestBuildEventPayloadsPinned:
+    """Assert that pre_build and post_build payloads carry required keys."""
+
+    @pytest.fixture()
+    def htb_ws(self, tmp_path: Path) -> Path:
+        return _create_htb_workspace(tmp_path)
+
+    @patch("empusa.cli_scan.run_nmap", side_effect=_fake_run_nmap)
+    @patch("empusa.cli_scan.check_tool_exists", return_value=True)
+    @patch("empusa.cli_scan.Confirm.ask", return_value=False)
+    def test_pre_build_payload_has_ips(self, _confirm: Any, _tool: Any, _nmap: Any, htb_ws: Path) -> None:
+        from empusa.cli_scan import build_env
+
+        captured: list[tuple[str, dict[str, Any]]] = []
+        build_env("box1", ["10.10.10.1", "10.10.10.2"],
+                  run_hooks_fn=lambda e, c: captured.append((e, c)),
+                  workspace_path=htb_ws)
+        pre = next(e for e in captured if e[0] == "pre_build")
+        assert "ips" in pre[1]
+        assert pre[1]["ips"] == ["10.10.10.1", "10.10.10.2"]
+        assert "env_name" in pre[1]
+
+    @patch("empusa.cli_scan.run_nmap", side_effect=_fake_run_nmap)
+    @patch("empusa.cli_scan.check_tool_exists", return_value=True)
+    @patch("empusa.cli_scan.Confirm.ask", return_value=False)
+    def test_post_build_payload_complete(self, _confirm: Any, _tool: Any, _nmap: Any, htb_ws: Path) -> None:
+        from empusa.cli_scan import build_env
+
+        captured: list[tuple[str, dict[str, Any]]] = []
+        build_env("box1", ["10.10.10.1"],
+                  run_hooks_fn=lambda e, c: captured.append((e, c)),
+                  workspace_path=htb_ws)
+        post = next(e for e in captured if e[0] == "post_build")
+        required = {"env_name", "env_path", "ips"}
+        assert required <= set(post[1].keys())
+
+    @patch("empusa.cli_scan.run_nmap", side_effect=_fake_run_nmap)
+    @patch("empusa.cli_scan.check_tool_exists", return_value=True)
+    @patch("empusa.cli_scan.Confirm.ask", return_value=False)
+    def test_standalone_pre_build_also_has_ips(
+        self, _confirm: Any, _tool: Any, _nmap: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from empusa.cli_scan import build_env
+
+        monkeypatch.chdir(tmp_path)
+        captured: list[tuple[str, dict[str, Any]]] = []
+        build_env("flat", ["10.10.10.1"],
+                  run_hooks_fn=lambda e, c: captured.append((e, c)))
+        pre = next(e for e in captured if e[0] == "pre_build")
+        assert "ips" in pre[1]
+        assert pre[1]["ips"] == ["10.10.10.1"]
+
+
+# ═══════════════════════════════════════════════════════════════════
 #  build_env - workspace mode (mocked nmap)
 # ═══════════════════════════════════════════════════════════════════
 
@@ -202,8 +307,8 @@ class TestBuildEnvWorkspace:
 
         captured: list[tuple[str, dict[str, Any]]] = []
 
-        def hook(event: str, ctx: dict[str, Any]) -> None:
-            captured.append((event, ctx))
+        def hook(event: str, ctx: dict[str, Any] | None = None) -> None:
+            captured.append((event, ctx or {}))
 
         build_env("box1", ["10.10.10.1"], run_hooks_fn=hook, workspace_path=htb_ws)
 
@@ -220,8 +325,8 @@ class TestBuildEnvWorkspace:
 
         captured: list[tuple[str, dict[str, Any]]] = []
 
-        def hook(event: str, ctx: dict[str, Any]) -> None:
-            captured.append((event, ctx))
+        def hook(event: str, ctx: dict[str, Any] | None = None) -> None:
+            captured.append((event, ctx or {}))
 
         build_env("box1", ["10.10.10.1"], run_hooks_fn=hook, workspace_path=htb_ws)
 
@@ -291,8 +396,8 @@ class TestBuildEnvStandalone:
         monkeypatch.chdir(tmp_path)
         captured: list[tuple[str, dict[str, Any]]] = []
 
-        def hook(event: str, ctx: dict[str, Any]) -> None:
-            captured.append((event, ctx))
+        def hook(event: str, ctx: dict[str, Any] | None = None) -> None:
+            captured.append((event, ctx or {}))
 
         layout = build_env("legacyenv", ["10.10.10.1"], run_hooks_fn=hook)
         assert layout is not None

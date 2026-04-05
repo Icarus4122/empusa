@@ -120,6 +120,43 @@ class TestCmdWorkspaceInit:
         post = next(e for e in captured if e[0] == "post_workspace_init")
         assert len(post[1]["created_paths"]) > 0
 
+    # -- Payload completeness (contract pinning) ---------------------
+
+    def test_pre_event_payload_complete(self, tmp_path: Path) -> None:
+        """All required keys are present in pre_workspace_init payload."""
+        captured, emit = self._emit_events()
+        args = _make_args(name="box1", profile="htb", root=str(tmp_path), set_active=True)
+        cmd_workspace_init(args, emit_fn=emit)
+        pre = next(e for e in captured if e[0] == "pre_workspace_init")
+        required = {"workspace_name", "workspace_root", "profile", "set_active"}
+        assert required <= set(pre[1].keys())
+
+    def test_post_event_payload_complete(self, tmp_path: Path) -> None:
+        """All required keys are present in post_workspace_init payload."""
+        captured, emit = self._emit_events()
+        args = _make_args(name="box1", profile="htb", root=str(tmp_path))
+        cmd_workspace_init(args, emit_fn=emit)
+        post = next(e for e in captured if e[0] == "post_workspace_init")
+        required = {"workspace_name", "workspace_root", "workspace_path",
+                     "profile", "set_active", "created_paths"}
+        assert required <= set(post[1].keys())
+
+    def test_htb_profile_dirs_all_created(self, tmp_path: Path) -> None:
+        """Every htb profile directory is physically created."""
+        captured, emit = self._emit_events()
+        args = _make_args(name="box1", profile="htb", root=str(tmp_path))
+        cmd_workspace_init(args, emit_fn=emit)
+        for d in PROFILES["htb"]["dirs"]:
+            assert (tmp_path / "box1" / d).is_dir(), f"missing dir: {d}"
+
+    def test_research_profile_dirs_all_created(self, tmp_path: Path) -> None:
+        """Every research profile directory is physically created."""
+        captured, emit = self._emit_events()
+        args = _make_args(name="topic", profile="research", root=str(tmp_path))
+        cmd_workspace_init(args, emit_fn=emit)
+        for d in PROFILES["research"]["dirs"]:
+            assert (tmp_path / "topic" / d).is_dir(), f"missing dir: {d}"
+
     def test_set_active_updates_config(self, tmp_path: Path) -> None:
         captured, emit = self._emit_events()
         args = _make_args(name="active1", profile="htb", root=str(tmp_path), set_active=True)
@@ -252,6 +289,19 @@ class TestCmdWorkspaceSelect:
         assert evt[1]["workspace_name"] == "ws1"
         assert evt[1]["profile"] == "htb"
         assert evt[1]["workspace_path"] == str(tmp_path / "ws1")
+
+    def test_select_event_payload_complete(self, tmp_path: Path) -> None:
+        """All required keys are present in on_workspace_select payload."""
+        self._setup_workspace(tmp_path, "ws1", "htb")
+        captured: list[tuple[str, dict[str, Any]]] = []
+
+        def emit(e: str, c: dict[str, Any]) -> None:
+            captured.append((e, c))
+
+        cmd_workspace_select(_make_args(name="ws1", root=str(tmp_path)), emit_fn=emit)
+        evt = next(e for e in captured if e[0] == "on_workspace_select")
+        required = {"workspace_name", "workspace_root", "workspace_path", "profile"}
+        assert required <= set(evt[1].keys())
 
     def test_select_missing_workspace(self, tmp_path: Path) -> None:
         def emit(e: str, c: dict[str, Any]) -> None: ...

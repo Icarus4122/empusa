@@ -169,3 +169,48 @@ class TestPluginRouting:
         results = bus.emit(StartupEvent())
         assert "on_startup" in dispatched
         assert any(r.get("plugin") == "fake" for r in results)
+
+
+# -- emit_legacy uses make_event internally --------------------------
+
+
+class TestEmitLegacyCanonical:
+    """Verify emit_legacy still produces correctly typed events
+    after its internals were refactored to use make_event."""
+
+    def test_workspace_event_via_legacy(self, bus: EventBus) -> None:
+        from empusa.events import PreWorkspaceInitEvent
+
+        received: list[EmpusaEvent] = []
+        bus.subscribe("pre_workspace_init", received.append)
+        bus.emit_legacy(
+            "pre_workspace_init",
+            {"workspace_name": "box1", "workspace_root": "/opt/lab/workspaces", "profile": "htb"},
+        )
+        assert len(received) == 1
+        evt = received[0]
+        assert isinstance(evt, PreWorkspaceInitEvent)
+        assert evt.workspace_name == "box1"  # type: ignore[attr-defined]
+        assert evt.profile == "htb"  # type: ignore[attr-defined]
+
+    def test_legacy_hook_receives_dict(self, tmp_path: Path) -> None:
+        """Legacy run(context) hooks still receive a plain dict."""
+        hooks_dir = tmp_path / "hooks"
+        evt_dir = hooks_dir / "pre_build"
+        evt_dir.mkdir(parents=True)
+        marker = tmp_path / "marker.txt"
+        script = evt_dir / "check.py"
+        script.write_text(
+            f"import pathlib, json\n"
+            f"def run(ctx):\n"
+            f"    assert isinstance(ctx, dict)\n"
+            f"    pathlib.Path(r'{marker}').write_text(json.dumps(ctx))\n"
+        )
+        bus = EventBus(hooks_dir=hooks_dir, quiet=True)
+        bus.emit_legacy("pre_build", {"env_name": "myenv", "ips": ["10.0.0.1"]})
+        import json
+
+        data = json.loads(marker.read_text())
+        assert data["env_name"] == "myenv"
+        assert data["ips"] == ["10.0.0.1"]
+        assert data["event"] == "pre_build"
