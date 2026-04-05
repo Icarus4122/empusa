@@ -17,13 +17,12 @@ import pytest
 
 from empusa.cli_common import CONFIG, clear_active_workspace, set_active_workspace
 from empusa.workspace import (
-    BuildLayout,
     METADATA_FILENAME,
+    BuildLayout,
     create_workspace,
     ensure_build_layout,
     load_metadata,
 )
-
 
 # ── helpers ──────────────────────────────────────────────────────────
 
