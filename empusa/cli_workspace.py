@@ -118,7 +118,7 @@ def cmd_workspace_init(
         return 0
 
     log_action("Workspace Init", f"{result.name} ({profile})")
-    log_success(f"[+] Created workspace: {result.workspace_path}")
+    log_success(f"[PASS] Created workspace: {result.workspace_path}")
 
     if result.templates_seeded:
         log_info(
@@ -232,7 +232,7 @@ def cmd_workspace_select(
         profile=meta.get("profile", ""),
     )
     log_action("Workspace Select", name)
-    log_success(f"[+] Active workspace: {name} (profile={meta.get('profile', '?')})")
+    log_success(f"[PASS] Active workspace: {name} (profile={meta.get('profile', '?')})")
 
     emit_fn(
         "on_workspace_select",
