@@ -960,7 +960,7 @@ def compile_module(
                     marker.unlink()
                 return False
 
-            log_success(f"[+] Build succeeded: {output_path}")
+            log_success(f"[PASS] Build succeeded: {output_path}")
             if result.stdout.strip():
                 log_verbose(f"stdout:\n{result.stdout.strip()}")
             # Write a build marker so status detection is reliable
@@ -1467,7 +1467,7 @@ def module_workshop(
                 continue
 
             mod_dir = create_module_template(language, name)
-            log_success(f"[+] Created module: {mod_dir}")
+            log_success(f"[PASS] Created module: {mod_dir}")
             log_info("Edit the source file, then use option 2 to compile.", "yellow")
             content = _list_modules_render()
 
@@ -1508,7 +1508,7 @@ def module_workshop(
             # Open modules folder - with graceful degradation
             MODULES_DIR.mkdir(parents=True, exist_ok=True)
             if _open_directory(MODULES_DIR):
-                log_success(f"[+] Opened: {MODULES_DIR}")
+                log_success(f"[PASS] Opened: {MODULES_DIR}")
                 content = "[green]✔[/green] Opened modules folder"
             else:
                 log_info("Could not open file manager (headless / SSH?).", "yellow")

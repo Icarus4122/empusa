@@ -174,4 +174,4 @@ def ad_enum_playbook() -> None:
         out_path = Path(env) / default_name if env else Path(default_name)
         out_path.parent.mkdir(parents=True, exist_ok=True)
         out_path.write_text(full_output + "\n", encoding="utf-8")
-        log_success(f"[+] Saved: {out_path}")
+        log_success(f"[PASS] Saved: {out_path}")

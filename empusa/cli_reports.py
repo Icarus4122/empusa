@@ -613,7 +613,7 @@ def report_builder(
 
     try:
         report_path.write_text(report_text, encoding="utf-8")
-        log_success(f"[+] Report generated: {report_path}")
+        log_success(f"[PASS] Report generated: {report_path}")
         log_info(f"  Standalone targets: {len(standalone)}", "cyan")
         log_info(f"  AD targets: {len(ad_set)}", "cyan")
         filled_ports = sum(1 for h in all_targets if h.get("ports"))

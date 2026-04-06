@@ -181,7 +181,7 @@ def create_plugin(plugin_manager: PluginManager | None) -> None:
         permissions=perms,
         author=author,
     )
-    log_success(f"[+] Created plugin scaffold: {path}")
+    log_success(f"[PASS] Created plugin scaffold: {path}")
     log_info("Edit plugin.py to implement your logic.", "yellow")
 
     # Full lifecycle refresh so the new plugin is dependency-resolved
@@ -230,11 +230,11 @@ def toggle_plugin(plugin_manager: PluginManager | None) -> None:
             elif d.enabled or d.activated:
                 if Confirm.ask(f"Disable {pname}?"):
                     plugin_manager.disable_plugin(pname)
-                    log_success(f"[-] Disabled: {pname}")
+                    log_success(f"[PASS] Disabled: {pname}")
             else:
                 if Confirm.ask(f"Enable {pname}?"):
                     plugin_manager.enable_plugin(pname)
-                    log_success(f"[+] Enabled: {pname}")
+                    log_success(f"[PASS] Enabled: {pname}")
         else:
             log_error("Invalid selection.")
     except ValueError:
@@ -302,7 +302,7 @@ def plugin_info(plugin_manager: PluginManager | None) -> None:
                 except (json.JSONDecodeError, ValueError):
                     parsed_val = raw_val
                 plugin_manager.set_plugin_config(d.name, key, parsed_val)
-                log_success(f"[+] Set {key} = {parsed_val!r}")
+                log_success(f"[PASS] Set {key} = {parsed_val!r}")
         else:
             log_error("Invalid selection.")
     except ValueError:
@@ -332,7 +332,7 @@ def uninstall_plugin_ui(plugin_manager: PluginManager | None) -> None:
             pname = names[idx]
             if Confirm.ask(f"[bold red]Permanently delete {pname}?[/bold red]"):
                 if plugin_manager.uninstall_plugin(pname):
-                    log_success(f"[-] Uninstalled: {pname}")
+                    log_success(f"[PASS] Uninstalled: {pname}")
                     # Re-resolve remaining plugins so state stays consistent
                     plugin_manager.refresh()
                 else:
@@ -427,7 +427,7 @@ def open_plugins_dir() -> None:
             subprocess.run(["open", str(PLUGINS_DIR)], check=False)
         else:
             subprocess.run(["xdg-open", str(PLUGINS_DIR)], check=False)
-        log_success(f"[+] Opened: {PLUGINS_DIR}")
+        log_success(f"[PASS] Opened: {PLUGINS_DIR}")
     except Exception as e:
         log_error(f"Could not open directory: {e}")
         log_info(f"Path: {PLUGINS_DIR}", "yellow")

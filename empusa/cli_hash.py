@@ -204,7 +204,7 @@ def hash_crack_builder() -> None:
         )
         out_path.parent.mkdir(parents=True, exist_ok=True)
         out_path.write_text(script, encoding="utf-8")
-        log_success(f"[+] Saved: {out_path}")
+        log_success(f"[PASS] Saved: {out_path}")
 
 
 def find_password_files(domain: str, search_path: Path | None = None) -> list[Path]:
@@ -431,7 +431,7 @@ def generate_hashcat_rules() -> None:
         common_lengths = pattern_stats["lengths"].most_common(3)
         log_info(f"  Common lengths: {', '.join([str(length) for length, _ in common_lengths])}")
 
-        log_success(f"\n[+] {len(unique_rules)} hashcat rules generated")
+        log_success(f"\n[PASS] {len(unique_rules)} hashcat rules generated")
         log_success(f"Saved rules to: {rule_file}")
         log_info(f"\nUsage: hashcat -a 0 -m <mode> <hashfile> <wordlist> -r {rule_file}", "yellow")
     except Exception as e:

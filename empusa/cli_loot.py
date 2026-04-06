@@ -124,7 +124,7 @@ def _import_env_creds(env_path: Path, entries: list[dict[str, Any]]) -> list[dic
         except Exception as e:
             log_verbose(f"Warning: Could not read {pf}: {e}", "yellow")
 
-    log_success(f"[+] Imported {imported} new entries")
+    log_success(f"[PASS] Imported {imported} new entries")
     return entries
 
 
@@ -228,7 +228,7 @@ def _export_loot_markdown(entries: list[dict[str, Any]], export_path: Path) -> N
                     f.write(f"| {user} | {', '.join(sorted(set(host_list)))} |\n")
                 f.write("\n")
 
-        log_success(f"[+] Loot report exported to: {export_path}")
+        log_success(f"[PASS] Loot report exported to: {export_path}")
     except Exception as e:
         log_error(f"Error exporting loot: {e}")
 
@@ -421,7 +421,7 @@ def loot_tracker(
 
             entries.append(entry)
             _save_loot(loot_file, entries)
-            log_success("[+] Loot entry added and saved!")
+            log_success("[PASS] Loot entry added and saved!")
 
             if run_hooks_fn is not None:
                 run_hooks_fn(
@@ -480,7 +480,7 @@ def loot_tracker(
                     removed = entries.pop(idx)
                     _save_loot(loot_file, entries)
                     log_success(
-                        f"[-] Removed: {removed.get('username', '')}@{removed.get('host', '')} "
+                        f"[PASS] Removed: {removed.get('username', '')}@{removed.get('host', '')} "
                         f"({removed.get('cred_type', '')})"
                     )
                 else:

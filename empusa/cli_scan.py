@@ -121,7 +121,7 @@ def search_exploits_from_nmap(
         log_info("[DRY RUN] Would search exploits from nmap results", "yellow")
         return
 
-    log_info(f"[*] Parsing services from {nmap_file} and searching exploits...")
+    log_info(f"[INFO] Parsing services from {nmap_file} and searching exploits...")
 
     try:
         lines = nmap_path.read_text(errors="ignore").splitlines()
@@ -176,7 +176,7 @@ def search_exploits_from_nmap(
                     log_verbose(msg, "yellow")
                     out.write(msg + "\n")
 
-        log_success(f"[+] Saved exploit suggestions to: {exploit_log}")
+        log_success(f"[PASS] Saved exploit suggestions to: {exploit_log}")
     except Exception as e:
         log_error(f"Error writing exploit log: {e}")
 
@@ -249,7 +249,7 @@ def run_nmap(
             },
         )
 
-    log_info(f"[*] Scanning (fast discovery) on {ip}...")
+    log_info(f"[INFO] Scanning (fast discovery) on {ip}...")
 
     disc_cmd = [
         "nmap",
@@ -287,7 +287,7 @@ def run_nmap(
         _run_nmap_cmd(["nmap", "-A", "-T5", "-Pn", "-p-", ip, "-oN", str(output_file)])
     else:
         ports_csv = ",".join(open_ports)
-        log_info(f"[*] Enriching {ip} (ports: {ports_csv})...")
+        log_info(f"[INFO] Enriching {ip} (ports: {ports_csv})...")
         enrich_cmd = [
             "nmap",
             "-n",
@@ -509,7 +509,7 @@ Register-EngineEvent PowerShell.Exiting -Action {{
         try:
             with profile_path.open("a", encoding="utf-8") as f:
                 f.write(config)
-            log_success(f"[+] PowerShell profile configured: {profile_path}")
+            log_success(f"[PASS] PowerShell profile configured: {profile_path}")
             log_info("Restart PowerShell or run: . $PROFILE", "yellow")
         except Exception as e:
             log_error(f"Error configuring PowerShell profile: {e}")
@@ -557,7 +557,7 @@ setopt SHARE_HISTORY
         try:
             with rc_file.open("a") as f:
                 f.write(config)
-            log_success(f"[+] Shell logging hook written to {rc_file}")
+            log_success(f"[PASS] Shell logging hook written to {rc_file}")
             log_info(f"Please run: source {rc_file}", "yellow")
         except Exception as e:
             log_error(f"Error configuring shell: {e}")
@@ -635,7 +635,7 @@ def build_env(
             },
         )
 
-    log_info("\n[*] Starting threaded Nmap scanning...", "bold green")
+    log_info("\n[INFO] Starting threaded Nmap scanning...", "bold green")
     scan_results: dict[str, Path] = {}
     max_workers = min(CONFIG["max_workers"], len(valid_ips))
 
@@ -671,7 +671,7 @@ def build_env(
         else:
             try:
                 old_path.rename(new_path)
-                log_success(f"[+] {ip} classified as {os_type} -> {new_path}")
+                log_success(f"[PASS] {ip} classified as {os_type} -> {new_path}")
             except Exception as e:
                 log_error(f"Error renaming {old_path}: {e}")
 

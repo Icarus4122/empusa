@@ -177,4 +177,4 @@ def privesc_enum_generator() -> None:
         filename = Prompt.ask("Save as", default=default_name).strip()
         out_path = Path(filename) if env == "" else Path(env) / filename
         out_path.write_text(full_output + "\n", encoding="utf-8")
-        log_success(f"[+] Saved: {out_path}")
+        log_success(f"[PASS] Saved: {out_path}")

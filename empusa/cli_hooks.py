@@ -428,7 +428,7 @@ def create_hook_ui() -> None:
     evt_choice = Prompt.ask("Select event #", choices=[str(i) for i in range(1, len(HOOK_EVENTS) + 1)])
     evt_name = HOOK_EVENTS[int(evt_choice) - 1]
     path = create_example_hook(evt_name)
-    log_success(f"[+] Created: {path}")
+    log_success(f"[PASS] Created: {path}")
     log_info("Edit this file to add your custom logic.", "yellow")
 
 
@@ -444,7 +444,7 @@ def open_hooks_dir() -> None:
             subprocess.run(["open", str(HOOKS_DIR)], check=False)
         else:
             subprocess.run(["xdg-open", str(HOOKS_DIR)], check=False)
-        log_success(f"[+] Opened: {HOOKS_DIR}")
+        log_success(f"[PASS] Opened: {HOOKS_DIR}")
     except Exception as e:
         log_error(f"Could not open directory: {e}")
         log_info(f"Path: {HOOKS_DIR}", "yellow")
@@ -479,7 +479,7 @@ def test_fire_hook() -> None:
         "source": "test",
     }
     run_hooks(evt_name, test_ctx)
-    log_success(f"[+] {evt_name} hooks fired.")
+    log_success(f"[PASS] {evt_name} hooks fired.")
 
 
 # -- Option 5: Delete Hook Script -----------------------------------
@@ -508,7 +508,7 @@ def delete_hook_ui() -> None:
             target = HOOKS_DIR / evt / s
             if Confirm.ask(f"Delete {evt}/{s}?"):
                 target.unlink()
-                log_success(f"[-] Deleted: {evt}/{s}")
+                log_success(f"[PASS] Deleted: {evt}/{s}")
         else:
             log_error("Invalid selection.")
     except ValueError:
