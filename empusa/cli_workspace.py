@@ -157,6 +157,13 @@ def cmd_workspace_init(
         )
         log_info(f"    Active workspace set to: {result.name}")
 
+    # Next-step guidance.
+    console.print(
+        f"\n  [bold cyan]\\[ACTION][/bold cyan]  Next\n"
+        f"      cd {result.workspace_path}\n"
+        f"      labctl launch {profile} {name}",
+    )
+
     return 0
 
 
@@ -242,6 +249,12 @@ def cmd_workspace_select(
             "workspace_path": str(ws_path),
             "profile": meta.get("profile", ""),
         },
+    )
+
+    # Next-step guidance.
+    profile = meta.get("profile", "default")
+    console.print(
+        f"\n  [bold cyan]\\[ACTION][/bold cyan]  Next\n      cd {ws_path}\n      labctl launch {profile} {name}",
     )
 
     return 0
