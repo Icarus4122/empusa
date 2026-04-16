@@ -10,7 +10,7 @@ authors = [{name = "Amos Parker"}]
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
-    "rich>=13.0.0"
+    "rich>=15.0.0"
 ]
 license = { text = "GPL-3.0-or-later" }
 keywords = ["security", "penetration-testing", "recon", "exploitation", "nmap", "hacking"]
