@@ -36,6 +36,7 @@ CONFIG: dict[str, Any] = {
     "max_workers": 8,
     "session_env": "",
     "enable_shell_hooks": False,
+    "no_plugins": False,
     # -- Workspace session state (set by workspace init/select) ------
     "workspace_name": "",
     "workspace_root": "",

@@ -159,13 +159,22 @@ def create_workspace(
     -------
     WorkspaceResult
         Structured summary of everything that was created.
+
+    Raises
+    ------
+    ValueError
+        If *profile* is unknown, or if *name* is empty / dot-only /
+        otherwise unusable as a directory name after sanitisation.
     """
     if profile not in PROFILES:
         raise ValueError(f"Unknown profile {profile!r}. Valid profiles: {', '.join(sorted(PROFILES))}")
 
     safe_name = _sanitize(name)
-    ws_root = root or DEFAULT_WORKSPACE_ROOT
-    ws_path = ws_root / safe_name
+    # Resolve root and workspace path to absolute, normalised forms
+    # before any I/O. This guarantees metadata files record canonical
+    # paths regardless of the CWD the caller used.
+    ws_root = (root or DEFAULT_WORKSPACE_ROOT).expanduser().resolve()
+    ws_path = (ws_root / safe_name).resolve()
 
     result = WorkspaceResult(
         name=safe_name,
@@ -347,6 +356,27 @@ def ensure_build_layout(
 
 
 def _sanitize(name: str) -> str:
-    """Strip characters that are unsafe in directory names."""
-    # Allow alphanumeric, hyphens, underscores, dots
-    return "".join(c for c in name if c.isalnum() or c in "-_.")
+    """Strip characters that are unsafe in directory names.
+
+    Allows alphanumerics, ``-``, ``_``, and ``.``.  Rejects names that
+    are empty, ``.``, ``..``, or otherwise reduce to an all-dot string
+    after stripping unsafe characters - these are unsafe both as
+    workspace directory names and as components of resolved paths.
+
+    Raises
+    ------
+    ValueError
+        If the cleaned name is empty or consists only of dots.
+    """
+    if not isinstance(name, str):
+        raise ValueError(f"Workspace name must be a string, got {type(name).__name__}")
+
+    cleaned = "".join(c for c in name if c.isalnum() or c in "-_.")
+
+    if not cleaned:
+        raise ValueError(f"Workspace name {name!r} is empty after sanitisation; use alphanumerics, '-', '_', or '.'")
+    if cleaned in {".", ".."} or set(cleaned) == {"."}:
+        raise ValueError(
+            f"Workspace name {name!r} reduces to a dot-only name {cleaned!r}; this is not a valid directory name"
+        )
+    return cleaned

@@ -25,6 +25,7 @@ class TestArgparseStructure:
         parser.add_argument("-q", "--quiet", action="store_true")
         parser.add_argument("--dry-run", action="store_true")
         parser.add_argument("--no-color", action="store_true")
+        parser.add_argument("--no-plugins", action="store_true")
         parser.add_argument("-w", "--workers", type=int, default=8)
 
         subs = parser.add_subparsers(dest="command")
@@ -32,6 +33,10 @@ class TestArgparseStructure:
         sp_build = subs.add_parser("build")
         sp_build.add_argument("--env", required=True)
         sp_build.add_argument("--ips", required=True)
+        sp_build_hist = sp_build.add_mutually_exclusive_group()
+        sp_build_hist.add_argument("--shell-history", dest="shell_history", action="store_true", default=None)
+        sp_build_hist.add_argument("--no-shell-history", dest="shell_history", action="store_false")
+        sp_build.add_argument("--force-overwrite", action="store_true")
 
         sp_exploit = subs.add_parser("exploit-search")
         sp_exploit.add_argument("--env", required=True)
@@ -202,6 +207,125 @@ class TestInitFramework:
         cli_mod.event_bus = None
         cli_mod.plugin_manager = None
         cli_mod.services = None
+
+
+class TestNoPluginsFlag:
+    """``--no-plugins`` must skip discover/resolve/activate."""
+
+    @patch("empusa.cli.PluginManager")
+    @patch("empusa.cli.EventBus")
+    @patch("empusa.cli.init_hook_dirs")
+    def test_no_plugins_skips_activation(
+        self,
+        mock_init_hooks: MagicMock,
+        mock_bus_cls: MagicMock,
+        mock_pm_cls: MagicMock,
+    ) -> None:
+        import empusa.cli as cli_mod
+        from empusa.cli import CONFIG, init_framework
+
+        mock_bus_cls.return_value = MagicMock()
+        mock_pm = MagicMock()
+        mock_pm_cls.return_value = mock_pm
+
+        cli_mod.event_bus = None
+        cli_mod.plugin_manager = None
+        cli_mod.services = None
+
+        prev = CONFIG.get("no_plugins", False)
+        CONFIG["no_plugins"] = True
+        try:
+            init_framework()
+        finally:
+            CONFIG["no_plugins"] = prev
+            cli_mod.event_bus = None
+            cli_mod.plugin_manager = None
+            cli_mod.services = None
+
+        # PluginManager must still be constructed (so service APIs work)
+        # but no plugin code should be loaded.
+        mock_pm_cls.assert_called_once()
+        mock_pm.init_dirs.assert_called_once()
+        mock_pm.discover.assert_not_called()
+        mock_pm.resolve_dependencies.assert_not_called()
+        mock_pm.activate_all.assert_not_called()
+
+    def test_flag_parses(self) -> None:
+        p = TestArgparseStructure.build_parser()
+        args = p.parse_args(["--no-plugins"])
+        assert args.no_plugins is True
+        args = p.parse_args([])
+        assert args.no_plugins is False
+
+
+class TestBuildNonInteractive:
+    """``empusa build`` must never block on Confirm.ask."""
+
+    def test_shell_history_flags_parse(self) -> None:
+        p = TestArgparseStructure.build_parser()
+        args = p.parse_args(["build", "--env", "x", "--ips", "1.2.3.4", "--no-shell-history"])
+        assert args.shell_history is False
+        args = p.parse_args(["build", "--env", "x", "--ips", "1.2.3.4", "--shell-history"])
+        assert args.shell_history is True
+        args = p.parse_args(["build", "--env", "x", "--ips", "1.2.3.4"])
+        assert args.shell_history is None
+
+    def test_force_overwrite_flag_parses(self) -> None:
+        p = TestArgparseStructure.build_parser()
+        args = p.parse_args(["build", "--env", "x", "--ips", "1.2.3.4", "--force-overwrite"])
+        assert args.force_overwrite is True
+
+    def test_build_env_non_interactive_does_not_prompt(self, tmp_path) -> None:
+        """In non-interactive mode build_env must skip both Confirm.ask sites."""
+        from unittest.mock import patch as _patch
+
+        from empusa import cli_scan
+
+        # Make Confirm.ask explode if reached.
+        def _explode(*_a, **_kw):
+            raise AssertionError("Confirm.ask called in non-interactive build")
+
+        with (
+            _patch.object(cli_scan, "check_tool_exists", return_value=True),
+            _patch.object(cli_scan.Confirm, "ask", side_effect=_explode),
+            _patch.object(cli_scan, "configure_shell_history") as mock_hist,
+            _patch.object(cli_scan, "ensure_build_layout") as mock_layout,
+        ):
+            mock_layout.return_value = MagicMock(commands_log=tmp_path / "cmd.log")
+            # Pre-create non-empty target dir so the "already exists"
+            # branch is exercised.
+            target = tmp_path / "envname"
+            target.mkdir()
+            (target / "marker").write_text("x")
+
+            import os as _os
+
+            cwd = _os.getcwd()
+            _os.chdir(tmp_path)
+            try:
+                # Default non-interactive: no shell history mutation,
+                # no overwrite -> aborts cleanly without prompting.
+                result = cli_scan.build_env(
+                    "envname",
+                    ["1.2.3.4"],
+                    interactive=False,
+                )
+                assert result is None
+                mock_hist.assert_not_called()
+
+                # With --force-overwrite + --no-shell-history: proceeds
+                # without prompting and never touches shell history.
+                result = cli_scan.build_env(
+                    "envname",
+                    ["1.2.3.4"],
+                    interactive=False,
+                    shell_history=False,
+                    overwrite_existing=True,
+                )
+                assert result is not None
+                mock_hist.assert_not_called()
+            finally:
+                _os.chdir(cwd)
 
 
 # -- Verbose + quiet mutual exclusion ---------------------------------

@@ -58,10 +58,33 @@ class TestSanitize:
         assert _sanitize("my box") == "mybox"
 
     def test_strips_slashes(self) -> None:
+        # Path separators are stripped, but the *result* must still be
+        # a usable directory name. ``../../etc`` strips to ``....etc``
+        # whose leading dots make it ambiguous - allow it through here
+        # since it contains real characters, but verify dot-only inputs
+        # are rejected (see ``test_rejects_*`` below).
         assert _sanitize("../../etc") == "....etc"
 
-    def test_empty_string(self) -> None:
-        assert _sanitize("") == ""
+    def test_rejects_empty_string(self) -> None:
+        with pytest.raises(ValueError):
+            _sanitize("")
+
+    def test_rejects_dot(self) -> None:
+        with pytest.raises(ValueError):
+            _sanitize(".")
+
+    def test_rejects_dotdot(self) -> None:
+        with pytest.raises(ValueError):
+            _sanitize("..")
+
+    def test_rejects_dot_only_after_strip(self) -> None:
+        # ``///`` strips to ``""`` (rejected), ``...`` is dot-only.
+        with pytest.raises(ValueError):
+            _sanitize("...")
+        with pytest.raises(ValueError):
+            _sanitize("///")
+        with pytest.raises(ValueError):
+            _sanitize("/ /")
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -81,8 +104,12 @@ class TestCreateWorkspaceHtb:
         result = create_workspace("target1", profile="htb", root=tmp_path)
         assert result.name == "target1"
         assert result.profile == "htb"
-        assert result.workspace_root == str(tmp_path)
-        assert result.workspace_path == str(tmp_path / "target1")
+        # workspace_root / workspace_path are resolved to canonical
+        # absolute paths before metadata is written.
+        assert result.workspace_root == str(tmp_path.resolve())
+        assert result.workspace_path == str((tmp_path / "target1").resolve())
+        assert Path(result.workspace_root).is_absolute()
+        assert Path(result.workspace_path).is_absolute()
         assert result.already_existed is False
         assert result.metadata_path != ""
 

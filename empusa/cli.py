@@ -816,6 +816,13 @@ def init_framework() -> None:
     # Attach plugin manager to bus so events route to plugins
     event_bus.attach_plugin_manager(plugin_manager)
 
+    # --no-plugins: skip discovery / dependency resolution / activation
+    # entirely. The PluginManager is still constructed (so service APIs
+    # that introspect it stay valid) but no plugin code is loaded.
+    if CONFIG.get("no_plugins"):
+        log_info("[INFO] --no-plugins set; skipping plugin discovery and activation", "yellow")
+        return
+
     # Discover and activate plugins
     plugin_manager.discover()
     dep_warnings = plugin_manager.resolve_dependencies()
@@ -843,7 +850,15 @@ def _cmd_build(args: argparse.Namespace) -> int:
     _run_hooks("on_startup")
     log_action("Build Environment", f"{args.env} -> {', '.join(ips)}")
     ws_path: Path | None = Path(CONFIG["workspace_path"]) if CONFIG["workspace_path"] else None
-    build_env(args.env, ips, run_hooks_fn=_run_hooks, workspace_path=ws_path)
+    build_env(
+        args.env,
+        ips,
+        run_hooks_fn=_run_hooks,
+        workspace_path=ws_path,
+        interactive=False,
+        shell_history=getattr(args, "shell_history", None),
+        overwrite_existing=True if getattr(args, "force_overwrite", False) else None,
+    )
     _shutdown()
     return 0
 
@@ -1015,6 +1030,11 @@ def main() -> None:
         action="store_true",
         help="Allow Empusa to install/remove shell history logging hooks on exit (default: off)",
     )
+    parser.add_argument(
+        "--no-plugins",
+        action="store_true",
+        help="Skip plugin discovery and activation (recommended for audit/scripted runs)",
+    )
 
     # -- Non-interactive subcommands ---------------------------------
     subparsers = parser.add_subparsers(dest="command", help="Non-interactive subcommands")
@@ -1023,6 +1043,25 @@ def main() -> None:
     sp_build = subparsers.add_parser("build", help="Build environment (non-interactive)")
     sp_build.add_argument("--env", required=True, help="Environment name")
     sp_build.add_argument("--ips", required=True, help="Comma-separated target IPs")
+    sp_build_hist = sp_build.add_mutually_exclusive_group()
+    sp_build_hist.add_argument(
+        "--shell-history",
+        dest="shell_history",
+        action="store_true",
+        default=None,
+        help="Configure shell history logging for this env (mutates shell profile)",
+    )
+    sp_build_hist.add_argument(
+        "--no-shell-history",
+        dest="shell_history",
+        action="store_false",
+        help="Skip shell history logging (default for non-interactive build)",
+    )
+    sp_build.add_argument(
+        "--force-overwrite",
+        action="store_true",
+        help="Continue even if the env directory already exists and is non-empty",
+    )
 
     # empusa exploit-search --env NAME --host FOLDER
     sp_exploit = subparsers.add_parser("exploit-search", help="Search exploits from nmap results")
@@ -1061,6 +1100,7 @@ def main() -> None:
     CONFIG["no_color"] = args.no_color
     CONFIG["max_workers"] = max(1, args.workers)
     CONFIG["enable_shell_hooks"] = args.enable_shell_hooks
+    CONFIG["no_plugins"] = args.no_plugins
 
     # Configure console based on settings
     if args.no_color:

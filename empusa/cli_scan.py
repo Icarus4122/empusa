@@ -576,6 +576,9 @@ def build_env(
     *,
     run_hooks_fn: Callable[..., Any] | None = None,
     workspace_path: Path | None = None,
+    interactive: bool = True,
+    shell_history: bool | None = None,
+    overwrite_existing: bool | None = None,
 ) -> BuildLayout | None:
     """Build penetration testing environment with scanning and file structure.
 
@@ -584,6 +587,24 @@ def build_env(
     ``logs/``) instead of a flat CWD-relative layout.  Returns the
     resolved :class:`~empusa.workspace.BuildLayout` on success, o
     *None* when validation fails or the run is aborted.
+
+    Parameters
+    ----------
+    interactive:
+        When False, never call :func:`rich.prompt.Confirm.ask`. This is
+        the safe default for non-interactive entry points (CI, scripts,
+        ``empusa build`` subcommand).
+    shell_history:
+        Tri-state opt-in for shell-history logging. ``True`` always
+        configures the shell hook; ``False`` always skips it; ``None``
+        defers to the interactive prompt (interactive mode only). In
+        non-interactive mode ``None`` is treated as ``False`` so the
+        operator's shell profile is never mutated implicitly.
+    overwrite_existing:
+        Tri-state for the "directory already exists" guard in flat
+        (non-workspace) layouts. ``True`` proceeds without prompting;
+        ``False`` aborts without prompting; ``None`` defers to the
+        interactive prompt. In non-interactive mode ``None`` aborts.
     """
     valid_ips: list[str] = []
     for ip in ips:
@@ -608,22 +629,41 @@ def build_env(
     # created intentionally - skip the "already exists" guard.
     if workspace_path is None:
         check_dir = Path(env_name).absolute()
-        if (
-            check_dir.exists()
-            and any(check_dir.iterdir())
-            and not Confirm.ask(f"[yellow]Environment '{env_name}' already exists. Continue?[/yellow]")
-        ):
-            return None
+        if check_dir.exists() and any(check_dir.iterdir()):
+            if overwrite_existing is True:
+                log_info(f"Environment '{env_name}' already exists; continuing (--force-overwrite).", "yellow")
+            elif overwrite_existing is False:
+                log_info(f"Environment '{env_name}' already exists; aborting (non-interactive).", "yellow")
+                return None
+            elif interactive:
+                if not Confirm.ask(f"[yellow]Environment '{env_name}' already exists. Continue?[/yellow]"):
+                    return None
+            else:
+                log_info(
+                    f"Environment '{env_name}' already exists; aborting (non-interactive).",
+                    "yellow",
+                )
+                return None
 
     # -- Scaffold directories via workspace module -------------------
     layout = ensure_build_layout(env_name, valid_ips, workspace_path=workspace_path)
 
     # Shell history logging is opt-in to avoid mutating the operator's
     # shell profile (especially important in CI / containers).
-    if Confirm.ask(
-        "[yellow]Enable shell history logging for this env?[/yellow]",
-        default=False,
-    ):
+    enable_history: bool
+    if shell_history is True:
+        enable_history = True
+    elif shell_history is False:
+        enable_history = False
+    elif interactive:
+        enable_history = Confirm.ask(
+            "[yellow]Enable shell history logging for this env?[/yellow]",
+            default=False,
+        )
+    else:
+        # Non-interactive default: never mutate the operator's shell.
+        enable_history = False
+    if enable_history:
         configure_shell_history(layout.commands_log)
 
     if run_hooks_fn is not None:

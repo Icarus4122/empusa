@@ -669,6 +669,29 @@ def on_event(event):
 - Plugins can be enabled, disabled, activated, deactivated, refreshed, and uninstalled.
 - The event bus dispatches typed events to plugins after framework initialization.
 
+### Trust boundaries (important)
+
+- Plugins and hooks are **trusted local Python and shell code**. They
+  run inside (plugins) or are spawned by (hooks) the Empusa process
+  with the operator's full user privileges. They are **not
+  OS-sandboxed**.
+- The plugin permission table above **gates only Empusa-provided
+  service APIs** (`Services.runner`, `Services.loot`, etc.). It is an
+  in-process intent declaration; it does not prevent a plugin from
+  importing arbitrary Python modules, opening sockets, or writing
+  files directly through the standard library.
+- Module Workshop compile commands declared in
+  `empusa/hooks/modules/<name>/module.json` are **trusted manifest
+  commands** and execute on the host as the invoking user.
+- Treat installing a third-party plugin, hook, or module as
+  equivalent to executing arbitrary code on the host. Review source
+  before enabling.
+- Use `empusa --no-plugins` to start the framework without activating
+  any plugin (recommended for scripted runs or untrusted plugin
+  directories).
+
+See [`SECURITY.md`](SECURITY.md) for the full trust model.
+
 ---
 
 ## Module Workshop
@@ -710,6 +733,14 @@ Representative examples include:
 - compile selected modules,
 - scaffold new module templates.
 
+> Bundled modules are **source templates only** for authorized lab or
+> assessment environments. Precompiled payloads must not be committed
+> to the repository — `obj/`, `bin/`, and native binaries are
+> gitignored and stripped from the published wheel by
+> `scripts/dev/package-sanity.py`. Compile commands declared in each
+> `module.json` are trusted local commands; review them before
+> building. See [`SECURITY.md`](SECURITY.md) for the full trust model.
+
 ---
 
 ## CLI Flags
@@ -722,6 +753,7 @@ Representative examples include:
 | `--dry-run` | boolean | off | Show intended actions without executing |
 | `--no-color` | boolean | off | Disable colored terminal output |
 | `-w`, `--workers N` | integer | `8` | Set maximum concurrent scan workers |
+| `--no-plugins` | boolean | off | Skip plugin discovery and activation entirely (audit / scripted runs) |
 | `--enable-shell-hooks` | boolean | off | Allow shell history logging hooks to be installed and removed |
 
 ---

@@ -19,8 +19,10 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install ruff
-      - run: ruff check empusa/ tests/
-      - run: ruff format --check empusa/ tests/
+      - run: ruff check empusa/ tests/ scripts/
+      - run: ruff format --check empusa/ tests/ scripts/
+      - name: Version sanity (pyproject vs __init__)
+        run: python scripts/dev/version-sanity.py
 
   test:
     name: Test (Python ${{ matrix.python-version }})
@@ -55,7 +57,11 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install build
+      - name: Version sanity (pyproject vs __init__)
+        run: python scripts/dev/version-sanity.py
       - run: python -m build
+      - name: Package content sanity (no generated artifacts in wheel)
+        run: python scripts/dev/package-sanity.py
       - name: Verify wheel contents
         run: |
           pip install dist/*.whl
