@@ -496,7 +496,7 @@ def loot_tracker(
 
         elif choice == "6":
             _sync_loot_to_env_files(env_path, entries)
-            content = "[green]✔[/green] Loot synced to environment files"
+            content = "[green]\\[PASS][/green] Loot synced to environment files"
 
         elif choice == "7":
             content = _reuse_analysis_render(entries)
@@ -504,4 +504,4 @@ def loot_tracker(
         elif choice == "8":
             export_path = env_path / "loot_report.md"
             _export_loot_markdown(entries, export_path)
-            content = f"[green]✔[/green] Loot report exported to: {export_path}"
+            content = f"[green]\\[PASS][/green] Loot report exported to: {export_path}"

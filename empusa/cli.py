@@ -155,7 +155,7 @@ def manage_hooks() -> None:
             content = list_hooks_render()
         elif choice == "5":
             open_hooks_dir()
-            content = "[green]✔[/green] Opened hooks folder"
+            content = "[green]\\[PASS][/green] Opened hooks folder"
         elif choice == "6":
             content = list_plugins_render(plugin_manager)
         elif choice == "7":
@@ -172,7 +172,7 @@ def manage_hooks() -> None:
             content = list_plugins_render(plugin_manager)
         elif choice == "11":
             open_plugins_dir()
-            content = "[green]✔[/green] Opened plugins folder"
+            content = "[green]\\[PASS][/green] Opened plugins folder"
         elif choice == "12":
             content = show_registry_render(registry)
 
@@ -424,7 +424,7 @@ def _shutdown() -> None:
             for k in killed:
                 panel_lines.append(f"  [red]✘[/red]  {k}")
         else:
-            panel_lines.append("[green]✔[/green]  No lingering child processes found.")
+            panel_lines.append("[green]\\[PASS][/green]  No lingering child processes found.")
         panel_lines.append("")
 
         # Shell hooks section
@@ -433,7 +433,7 @@ def _shutdown() -> None:
             for rc_path in cleaned:
                 panel_lines.append(f"  [red]✘[/red]  {rc_path}")
         else:
-            panel_lines.append("[green]✔[/green]  No shell logging hooks to remove.")
+            panel_lines.append("[green]\\[PASS][/green]  No shell logging hooks to remove.")
         panel_lines.append("")
 
         # Execution flow
@@ -655,17 +655,17 @@ def main_menu() -> None:
                             if nmap_f.exists():
                                 search_exploits_from_nmap(nmap_f, services=services)
                     pause()
-                    content = "[green]✔[/green] Exploit search complete"
+                    content = "[green]\\[PASS][/green] Exploit search complete"
                 elif nxt == "2":
                     log_action("Reverse Tunnel", "Post-build")
                     build_reverse_tunnel()
                     pause()
-                    content = "[green]✔[/green] Reverse tunnel configured"
+                    content = "[green]\\[PASS][/green] Reverse tunnel configured"
                 elif nxt == "3":
                     log_action("Hashcat Rules", "Post-build")
                     generate_hashcat_rules()
                     pause()
-                    content = "[green]✔[/green] Hashcat rules generated"
+                    content = "[green]\\[PASS][/green] Hashcat rules generated"
                 elif nxt == "4":
                     log_action("Loot Tracker", "Post-build")
                     loot_tracker(run_hooks_fn=_run_hooks, ask_env_fn=_ask_env)
@@ -709,7 +709,7 @@ def main_menu() -> None:
                 if CONFIG["session_env"]:
                     log_action("Switch Environment", CONFIG["session_env"])
                 content = (
-                    f"[green]✔[/green] Active environment: {CONFIG['session_env']}"
+                    f"[green]\\[PASS][/green] Active environment: {CONFIG['session_env']}"
                     if CONFIG["session_env"]
                     else "[yellow]Active environment cleared.[/yellow]"
                 )
@@ -887,7 +887,7 @@ def _cmd_loot(args: argparse.Namespace) -> int:
             "source": args.source or "",
         }
         services.loot.append(new_entry)
-        log_success(f"[+] Loot added: {new_entry}")
+        log_success(f"[PASS] Loot added: {new_entry}")
         _run_hooks(
             "on_loot_add",
             {
@@ -931,7 +931,7 @@ def _cmd_report(args: argparse.Namespace) -> int:
         lines.extend(build_host_md(host, 3, i, "Target"))
     report_path = env_path / f"{assessment.replace(' ', '_')}_report.md"
     report_path.write_text("\n".join(lines), encoding="utf-8")
-    log_success(f"[+] Report written: {report_path}")
+    log_success(f"[PASS] Report written: {report_path}")
 
     _run_hooks(
         "on_report_generated",
@@ -950,9 +950,9 @@ def _cmd_plugins_refresh(args: argparse.Namespace) -> int:
     assert plugin_manager is not None
     warnings = plugin_manager.refresh()
     for w in warnings:
-        log_info(f"  ⚠ {w}", "yellow")
+        log_info(f"  [WARN] {w}", "yellow")
     log_success(
-        f"[+] Plugins refreshed: {plugin_manager.active_count()} active / {plugin_manager.plugin_count()} total"
+        f"[PASS] Plugins refreshed: {plugin_manager.active_count()} active / {plugin_manager.plugin_count()} total"
     )
     _shutdown()
     return 0

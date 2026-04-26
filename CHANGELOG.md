@@ -5,7 +5,35 @@ All notable changes to Empusa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [2.2.1] - 2026-04-05
+## [2.3.0] - 2026-04-26
+
+### Added
+
+- **Workspace `[ACTION]` next-step blocks** - `workspace init` and
+  `workspace select` now end with an explicit `[ACTION] Next` block
+  listing the recommended follow-up commands, mirroring the Hecate
+  `lib/ui.sh` `ui_next_block` shape.
+
+### Changed
+
+- **CLI marker alignment** - All operator-facing CLI output across
+  `cli`, `cli_ad`, `cli_hash`, `cli_hooks`, `cli_loot`, `cli_modules`,
+  `cli_plugins`, `cli_privesc`, `cli_reports`, `cli_scan`, and
+  `cli_workspace` now uses the canonical bracketed-word vocabulary
+  `[PASS]` / `[FAIL]` / `[WARN]` / `[INFO]` / `[ACTION]` instead of
+  the previous mixed glyph set (`[+]`, `[-]`, `[*]`, `[!]`, `✔`, `⚠`).
+- **Panel content escapement** - In-panel status lines now emit
+  `\[PASS]` / `\[FAIL]` etc. so Rich renders the markers as literal
+  text rather than treating the brackets as markup.
+- **README badge** - Version badge updated to track actual package
+  version (was drifted at 2.2.0).
+
+### Fixed
+
+- Stale `✔` and `[+]` markers in shutdown panels, build summaries,
+  loot status panels, and module workshop output.
+
+
 
 ### Added
 

@@ -3,7 +3,7 @@
 [![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/downloads/)
 [![CI](https://github.com/Icarus4122/empusa/actions/workflows/ci.yml/badge.svg)](https://github.com/Icarus4122/empusa/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/Icarus4122/empusa/graph/badge.svg)](https://codecov.io/gh/Icarus4122/empusa)
-[![Version](https://img.shields.io/badge/version-2.2.0-purple.svg)](https://github.com/Icarus4122/empusa)
+[![Version](https://img.shields.io/badge/version-2.3.0-purple.svg)](https://github.com/Icarus4122/empusa)
 [![License: GPL v3+](https://img.shields.io/badge/license-GPLv3%2B-red.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-console-informational.svg)](#usage)
 [![Rich UI](https://img.shields.io/badge/ui-rich-green.svg)](https://github.com/Textualize/rich)

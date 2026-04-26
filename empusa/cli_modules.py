@@ -551,7 +551,7 @@ def module_info(
             build_path = Path(art["build_dir"])
             build_path.mkdir(parents=True, exist_ok=True)
             if _open_directory(build_path):
-                log_success(f"  [+] Opened: {build_path}")
+                log_success(f"  [PASS] Opened: {build_path}")
             else:
                 log_info("  Could not open file manager (headless / SSH?).", "yellow")
                 log_info(f"  Path: {build_path}", "cyan")
@@ -753,7 +753,7 @@ def _render_validation(findings: list[dict[str, str]]) -> None:
     elif warnings:
         log_info(f"  [green]No errors[/green], {warnings} warning(s)", "yellow")
     else:
-        log_info("  [green]All checks passed ✔[/green]", "green")
+        log_info("  [green]\\[PASS] All checks passed[/green]", "green")
 
 
 # -- Compile ---------------------------------------------------------
@@ -1509,7 +1509,7 @@ def module_workshop(
             MODULES_DIR.mkdir(parents=True, exist_ok=True)
             if _open_directory(MODULES_DIR):
                 log_success(f"[PASS] Opened: {MODULES_DIR}")
-                content = "[green]✔[/green] Opened modules folder"
+                content = "[green]\\[PASS][/green] Opened modules folder"
             else:
                 log_info("Could not open file manager (headless / SSH?).", "yellow")
                 log_info(f"Path: {MODULES_DIR}", "cyan")
