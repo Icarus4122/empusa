@@ -764,7 +764,7 @@ pytest
 | Field | Value |
 | --- | --- |
 | Name | `empusa` |
-| Version | `2.2.0` |
+| Version | `2.3.0` |
 | Python | `>=3.9` |
 | License | `GPL-3.0-or-later` |
 | Entry point | `empusa = empusa.cli:main` |
