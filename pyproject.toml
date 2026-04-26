@@ -55,7 +55,7 @@ omit = ["empusa/hooks/modules/*"]
 [tool.coverage.report]
 show_missing = true
 skip_empty = true
-fail_under = 40
+fail_under = 65
 
 [tool.ruff]
 target-version = "py39"

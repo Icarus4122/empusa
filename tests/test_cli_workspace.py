@@ -60,6 +60,13 @@ def _reset_config() -> Any:
     clear_active_workspace()
 
 
+@pytest.fixture(autouse=True)
+def _clear_strict_templates_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Default-mode tests must be env-independent, even when the suite
+    is launched under STRICT_TEMPLATES=1."""
+    monkeypatch.delenv("STRICT_TEMPLATES", raising=False)
+
+
 # ═══════════════════════════════════════════════════════════════════
 #  cmd_workspace_init
 # ═══════════════════════════════════════════════════════════════════
@@ -203,6 +210,117 @@ class TestCmdWorkspaceInit:
         )
         rc = cmd_workspace_init(args, emit_fn=emit)
         assert rc == 1
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  STRICT_TEMPLATES env-gate
+# ═══════════════════════════════════════════════════════════════════
+
+
+class TestStrictTemplatesGate:
+    """STRICT_TEMPLATES=1 promotes the templates-missing soft warning
+    in ``empusa workspace init`` to a [FAIL] + nonzero return."""
+
+    @staticmethod
+    def _emit() -> Any:
+        events: list[tuple[str, dict[str, Any]]] = []
+
+        def emit(name: str, ctx: dict[str, Any]) -> None:
+            events.append((name, ctx))
+
+        return events, emit
+
+    def test_helper_reads_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from empusa.cli_workspace import strict_templates_enabled
+
+        monkeypatch.delenv("STRICT_TEMPLATES", raising=False)
+        assert strict_templates_enabled() is False
+
+        monkeypatch.setenv("STRICT_TEMPLATES", "1")
+        assert strict_templates_enabled() is True
+
+        monkeypatch.setenv("STRICT_TEMPLATES", "0")
+        assert strict_templates_enabled() is False
+
+        monkeypatch.setenv("STRICT_TEMPLATES", "true")
+        assert strict_templates_enabled() is False
+
+    def test_default_missing_dir_warns_and_creates(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: Any
+    ) -> None:
+        monkeypatch.delenv("STRICT_TEMPLATES", raising=False)
+        assert PROFILES["htb"].get("templates"), "htb profile must declare templates"
+        _, emit = self._emit()
+        args = _make_args(name="soft", profile="htb", root=str(tmp_path))
+        rc = cmd_workspace_init(args, emit_fn=emit)
+        assert rc == 0
+        assert (tmp_path / "soft").is_dir()
+        out = capsys.readouterr().out
+        assert "expects templates" in out
+        assert "[FAIL]" not in out
+
+    def test_strict_missing_dir_fails(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: Any) -> None:
+        monkeypatch.setenv("STRICT_TEMPLATES", "1")
+        _, emit = self._emit()
+        args = _make_args(name="strict_miss", profile="htb", root=str(tmp_path))
+        rc = cmd_workspace_init(args, emit_fn=emit)
+        assert rc == 1
+        # Workspace must NOT be created when strict gate fails early.
+        assert not (tmp_path / "strict_miss").exists()
+        out = capsys.readouterr().out + capsys.readouterr().err
+        assert "[FAIL]" in out
+        assert "STRICT_TEMPLATES" in out
+
+    def test_strict_nonexistent_dir_fails(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("STRICT_TEMPLATES", "1")
+        _, emit = self._emit()
+        args = _make_args(
+            name="strict_bad",
+            profile="htb",
+            root=str(tmp_path),
+            templates_dir=str(tmp_path / "does-not-exist"),
+        )
+        rc = cmd_workspace_init(args, emit_fn=emit)
+        assert rc == 1
+        assert not (tmp_path / "strict_bad").exists()
+
+    def test_strict_valid_dir_succeeds(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("STRICT_TEMPLATES", "1")
+        tpl = _make_templates_dir(tmp_path, list(PROFILES["htb"]["templates"]))
+        _, emit = self._emit()
+        args = _make_args(
+            name="strict_ok",
+            profile="htb",
+            root=str(tmp_path),
+            templates_dir=str(tpl),
+        )
+        rc = cmd_workspace_init(args, emit_fn=emit)
+        assert rc == 0
+        assert (tmp_path / "strict_ok").is_dir()
+
+    def test_strict_template_free_profile_unaffected(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """If a profile declares no templates, strict mode is a no-op."""
+        monkeypatch.setenv("STRICT_TEMPLATES", "1")
+        # Find a profile with no templates, if any; else skip silently.
+        bare = next(
+            (p for p, cfg in PROFILES.items() if not cfg.get("templates")),
+            None,
+        )
+        if bare is None:
+            pytest.skip("All profiles declare templates; nothing to test.")
+        _, emit = self._emit()
+        args = _make_args(name="bare", profile=bare, root=str(tmp_path))
+        rc = cmd_workspace_init(args, emit_fn=emit)
+        assert rc == 0
+
+    def test_unset_restores_default(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("STRICT_TEMPLATES", "1")
+        monkeypatch.delenv("STRICT_TEMPLATES", raising=False)
+        _, emit = self._emit()
+        args = _make_args(name="restored", profile="htb", root=str(tmp_path))
+        rc = cmd_workspace_init(args, emit_fn=emit)
+        assert rc == 0
+        assert (tmp_path / "restored").is_dir()
 
 
 # ═══════════════════════════════════════════════════════════════════

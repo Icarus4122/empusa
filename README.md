@@ -305,6 +305,12 @@ empusa workspace init --name resolute --profile htb \
     --set-active
 ```
 
+> **Strict templates (CI/release):** set `STRICT_TEMPLATES=1` to make
+> `workspace init` fail (`[FAIL]`, nonzero exit) when the selected
+> profile expects templates but no valid `--templates-dir` is supplied.
+> Default behavior remains forgiving — a `[WARN]` is emitted and the
+> workspace is created without template files.
+
 ### List workspaces
 
 ```bash
@@ -740,6 +746,13 @@ Representative examples include:
 > `scripts/dev/package-sanity.py`. Compile commands declared in each
 > `module.json` are trusted local commands; review them before
 > building. See [`SECURITY.md`](SECURITY.md) for the full trust model.
+
+> **Strict discovery (CI/release):** set `STRICT_MODULES=1` to make
+> module discovery fail hard on malformed `module.json`, missing
+> required fields (`name`, `language`, `source`), or missing declared
+> source files. Default development mode remains forgiving — invalid
+> modules are skipped or marked `_source_missing` and discovery
+> continues.
 
 ---
 

@@ -221,6 +221,17 @@ def detect_compilers() -> dict[str, list[str]]:
 # -- Module discovery ------------------------------------------------
 
 
+def strict_modules_enabled() -> bool:
+    """Return True when STRICT_MODULES=1 is set in the environment.
+
+    Strict mode upgrades soft skips during module discovery (malformed
+    module.json, missing required fields, missing source files) into
+    hard ValueError failures. Intended for CI/release validation, not
+    interactive development.
+    """
+    return os.environ.get("STRICT_MODULES") == "1"
+
+
 def list_modules() -> list[dict[str, Any]]:
     """Discover all modules under MODULES_DIR.
 
@@ -231,6 +242,7 @@ def list_modules() -> list[dict[str, Any]]:
     """
     modules: list[dict[str, Any]] = []
     skipped: list[str] = []
+    strict = strict_modules_enabled()
     if not MODULES_DIR.exists():
         return modules
     for item in sorted(MODULES_DIR.iterdir()):
@@ -243,6 +255,9 @@ def list_modules() -> list[dict[str, Any]]:
         try:
             data: dict[str, Any] = json.loads(manifest.read_text(encoding="utf-8"))
         except json.JSONDecodeError as exc:
+            if strict:
+                log_error(f"[FAIL] Module {item.name}: malformed module.json - {exc}")
+                raise ValueError(f"STRICT_MODULES: malformed module.json in '{item.name}': {exc}") from exc
             # LOUD: surface parse failures in normal mode, not just verbose
             msg = f"[yellow]\u26a0[/yellow] Skipping [bold]{item.name}[/bold]: bad module.json - {exc}"
             log_info(msg, "yellow")
@@ -252,6 +267,11 @@ def list_modules() -> list[dict[str, Any]]:
         # Validate required manifest fields
         missing = [f for f in ("name", "language", "source") if f not in data]
         if missing:
+            if strict:
+                log_error(f"[FAIL] Module {item.name}: module.json missing required field(s): {', '.join(missing)}")
+                raise ValueError(
+                    f"STRICT_MODULES: module '{item.name}' missing required field(s): {', '.join(missing)}"
+                )
             msg = (
                 f"[yellow]\u26a0[/yellow] Skipping [bold]{item.name}[/bold]: "
                 f"module.json missing required field(s): {', '.join(missing)}"
@@ -266,6 +286,11 @@ def list_modules() -> list[dict[str, Any]]:
         # Validate source file exists
         source_file = item / data["source"]
         if not source_file.exists():
+            if strict:
+                log_error(f"[FAIL] Module {item.name}: declared source file '{data['source']}' not found")
+                raise ValueError(
+                    f"STRICT_MODULES: module '{item.name}' declared source file '{data['source']}' not found"
+                )
             data["_source_missing"] = True
             log_verbose(
                 f"Module {item.name}: source file '{data['source']}' not found",

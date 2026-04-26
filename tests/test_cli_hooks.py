@@ -338,3 +338,235 @@ class TestRunHooks:
 
         with patch("empusa.cli_hooks.HOOKS_DIR", hooks_dir):
             run_hooks("on_startup", {"event": "on_startup"})  # should not crash
+
+
+# -- list_hooks_ui ----------------------------------------------------
+
+
+class TestListHooksUi:
+    def test_renders_without_error(self, tmp_path: Path) -> None:
+        from empusa.cli_hooks import HOOK_EVENTS, list_hooks_ui
+
+        hooks_dir = tmp_path / "hooks"
+        for evt in HOOK_EVENTS:
+            (hooks_dir / evt).mkdir(parents=True)
+        (hooks_dir / HOOK_EVENTS[0] / "h.py").touch()
+
+        with patch("empusa.cli_hooks.HOOKS_DIR", hooks_dir):
+            list_hooks_ui()
+
+
+# -- create_hook_ui ---------------------------------------------------
+
+
+class TestCreateHookUi:
+    def test_creates_via_prompt_choice(self, tmp_path: Path) -> None:
+        from empusa.cli_hooks import HOOK_EVENTS, create_hook_ui
+
+        hooks_dir = tmp_path / "hooks"
+        with patch("empusa.cli_hooks.HOOKS_DIR", hooks_dir), patch("empusa.cli_hooks.Prompt") as mp:
+            mp.ask.return_value = "1"
+            create_hook_ui()
+
+        # First event got an example.py
+        assert (hooks_dir / HOOK_EVENTS[0] / "example.py").exists()
+
+
+# -- open_hooks_dir ---------------------------------------------------
+
+
+class TestOpenHooksDir:
+    def test_linux_path_uses_xdg_open(self, tmp_path: Path) -> None:
+        from empusa.cli_hooks import open_hooks_dir
+
+        with (
+            patch("empusa.cli_hooks.HOOKS_DIR", tmp_path),
+            patch("empusa.cli_hooks.IS_WINDOWS", False),
+            patch("empusa.cli_hooks.platform.system", return_value="Linux"),
+            patch("empusa.cli_hooks.subprocess.run") as mr,
+        ):
+            open_hooks_dir()
+
+        assert mr.called
+        assert mr.call_args.args[0][0] == "xdg-open"
+
+    def test_darwin_path_uses_open(self, tmp_path: Path) -> None:
+        from empusa.cli_hooks import open_hooks_dir
+
+        with (
+            patch("empusa.cli_hooks.HOOKS_DIR", tmp_path),
+            patch("empusa.cli_hooks.IS_WINDOWS", False),
+            patch("empusa.cli_hooks.platform.system", return_value="Darwin"),
+            patch("empusa.cli_hooks.subprocess.run") as mr,
+        ):
+            open_hooks_dir()
+
+        assert mr.call_args.args[0][0] == "open"
+
+    def test_exception_handled(self, tmp_path: Path) -> None:
+        from empusa.cli_hooks import open_hooks_dir
+
+        with (
+            patch("empusa.cli_hooks.HOOKS_DIR", tmp_path),
+            patch("empusa.cli_hooks.IS_WINDOWS", False),
+            patch("empusa.cli_hooks.platform.system", return_value="Linux"),
+            patch("empusa.cli_hooks.subprocess.run", side_effect=RuntimeError("boom")),
+        ):
+            open_hooks_dir()  # Should not raise
+
+
+# -- test_fire_hook ---------------------------------------------------
+
+
+class TestTestFireHook:
+    def test_fires_selected_event(self, tmp_path: Path) -> None:
+        from empusa.cli_hooks import HOOK_EVENTS, set_event_bus, test_fire_hook
+
+        hooks_dir = tmp_path / "hooks"
+        for evt in HOOK_EVENTS:
+            (hooks_dir / evt).mkdir(parents=True)
+        bus = MagicMock()
+        set_event_bus(bus)
+        try:
+            with patch("empusa.cli_hooks.HOOKS_DIR", hooks_dir), patch("empusa.cli_hooks.Prompt") as mp:
+                mp.ask.return_value = "1"
+                test_fire_hook()
+        finally:
+            set_event_bus(None)  # type: ignore[arg-type]
+
+        assert bus.emit_legacy.called
+        evt_name, ctx = bus.emit_legacy.call_args.args
+        assert evt_name == HOOK_EVENTS[0]
+        assert ctx["_test_fire"] is True
+        assert ctx["ip"] == "10.10.10.10"
+
+
+# -- delete_hook_ui ---------------------------------------------------
+
+
+class TestDeleteHookUi:
+    def _setup(self, tmp_path: Path) -> Path:
+        from empusa.cli_hooks import HOOK_EVENTS
+
+        hooks_dir = tmp_path / "hooks"
+        for evt in HOOK_EVENTS:
+            (hooks_dir / evt).mkdir(parents=True)
+        (hooks_dir / HOOK_EVENTS[0] / "victim.py").write_text("def run(c): pass\n")
+        return hooks_dir
+
+    def test_no_scripts_logs_and_returns(self, tmp_path: Path) -> None:
+        from empusa.cli_hooks import HOOK_EVENTS, delete_hook_ui
+
+        hooks_dir = tmp_path / "hooks"
+        for evt in HOOK_EVENTS:
+            (hooks_dir / evt).mkdir(parents=True)
+        with patch("empusa.cli_hooks.HOOKS_DIR", hooks_dir), patch("empusa.cli_hooks.Prompt") as mp:
+            delete_hook_ui()
+            mp.ask.assert_not_called()
+
+    def test_valid_selection_deletes(self, tmp_path: Path) -> None:
+        from empusa.cli_hooks import HOOK_EVENTS, delete_hook_ui
+
+        hooks_dir = self._setup(tmp_path)
+        target = hooks_dir / HOOK_EVENTS[0] / "victim.py"
+        with (
+            patch("empusa.cli_hooks.HOOKS_DIR", hooks_dir),
+            patch("empusa.cli_hooks.Prompt") as mp,
+            patch("empusa.cli_hooks.Confirm") as mc,
+        ):
+            mp.ask.return_value = "1"
+            mc.ask.return_value = True
+            delete_hook_ui()
+
+        assert not target.exists()
+
+    def test_decline_confirm_keeps_file(self, tmp_path: Path) -> None:
+        from empusa.cli_hooks import HOOK_EVENTS, delete_hook_ui
+
+        hooks_dir = self._setup(tmp_path)
+        target = hooks_dir / HOOK_EVENTS[0] / "victim.py"
+        with (
+            patch("empusa.cli_hooks.HOOKS_DIR", hooks_dir),
+            patch("empusa.cli_hooks.Prompt") as mp,
+            patch("empusa.cli_hooks.Confirm") as mc,
+        ):
+            mp.ask.return_value = "1"
+            mc.ask.return_value = False
+            delete_hook_ui()
+
+        assert target.exists()
+
+    def test_invalid_selection_index(self, tmp_path: Path) -> None:
+        from empusa.cli_hooks import HOOK_EVENTS, delete_hook_ui
+
+        hooks_dir = self._setup(tmp_path)
+        target = hooks_dir / HOOK_EVENTS[0] / "victim.py"
+        with patch("empusa.cli_hooks.HOOKS_DIR", hooks_dir), patch("empusa.cli_hooks.Prompt") as mp:
+            mp.ask.return_value = "99"
+            delete_hook_ui()
+        assert target.exists()
+
+    def test_invalid_selection_non_numeric(self, tmp_path: Path) -> None:
+        from empusa.cli_hooks import HOOK_EVENTS, delete_hook_ui
+
+        hooks_dir = self._setup(tmp_path)
+        target = hooks_dir / HOOK_EVENTS[0] / "victim.py"
+        with patch("empusa.cli_hooks.HOOKS_DIR", hooks_dir), patch("empusa.cli_hooks.Prompt") as mp:
+            mp.ask.return_value = "abc"
+            delete_hook_ui()
+        assert target.exists()
+
+
+# -- _fire_legacy_hooks_fallback edge cases ---------------------------
+
+
+class TestFireLegacyEdge:
+    def test_script_without_run_function_skipped(self, tmp_path: Path) -> None:
+        from empusa.cli_hooks import fire_legacy_hooks_fallback
+
+        hooks_dir = tmp_path / "hooks"
+        evt_dir = hooks_dir / "on_startup"
+        evt_dir.mkdir(parents=True)
+        (evt_dir / "norun.py").write_text("x = 1\n")  # no run()
+
+        with patch("empusa.cli_hooks.HOOKS_DIR", hooks_dir):
+            fire_legacy_hooks_fallback("on_startup")  # no raise
+
+    def test_script_run_raises_logs_error(self, tmp_path: Path) -> None:
+        from empusa.cli_hooks import fire_legacy_hooks_fallback
+
+        hooks_dir = tmp_path / "hooks"
+        evt_dir = hooks_dir / "on_startup"
+        evt_dir.mkdir(parents=True)
+        (evt_dir / "boom.py").write_text("def run(ctx):\n    raise RuntimeError('boom')\n")
+
+        with patch("empusa.cli_hooks.HOOKS_DIR", hooks_dir):
+            fire_legacy_hooks_fallback("on_startup", {"event": "on_startup"})
+
+
+# -- hooks_coverage_render --------------------------------------------
+
+
+class TestHooksCoverageRenderExtras:
+    def test_no_hooks_message(self, tmp_path: Path) -> None:
+        from empusa.cli_hooks import HOOK_EVENTS, hooks_coverage_render
+
+        hooks_dir = tmp_path / "hooks"
+        for evt in HOOK_EVENTS:
+            (hooks_dir / evt).mkdir(parents=True)
+        with patch("empusa.cli_hooks.HOOKS_DIR", hooks_dir):
+            text = hooks_coverage_render()
+        assert "No hooks configured" in text
+
+    def test_with_scripts(self, tmp_path: Path) -> None:
+        from empusa.cli_hooks import HOOK_EVENTS, hooks_coverage_render
+
+        hooks_dir = tmp_path / "hooks"
+        for evt in HOOK_EVENTS:
+            (hooks_dir / evt).mkdir(parents=True)
+        (hooks_dir / HOOK_EVENTS[0] / "x.py").touch()
+
+        with patch("empusa.cli_hooks.HOOKS_DIR", hooks_dir):
+            text = hooks_coverage_render()
+        assert HOOK_EVENTS[0] in text
+        assert "x.py" in text

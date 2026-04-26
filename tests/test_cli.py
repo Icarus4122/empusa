@@ -456,3 +456,53 @@ class TestCleanupShellHistory:
             result = _cleanup_shell_history()
 
         assert result == []
+
+    def test_read_failure_logs_warning_and_continues(self, tmp_path: Path, capsys: object) -> None:
+        """When an RC file read raises, emit observable [WARN] but keep going.
+
+        Forces the inner try/except by making read_text raise. The function
+        must still return (not propagate), and a [WARN] line must be visible
+        in normal (non-verbose) output.
+        """
+        from empusa import cli as cli_mod
+        from empusa.cli import _cleanup_shell_history
+
+        rc = tmp_path / ".bashrc"
+        rc.write_text("# Empusa Command Logging\nexport FOO=1\n")
+
+        original_read = Path.read_text
+
+        def boom(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+            if self.name == ".bashrc":
+                raise OSError("simulated read failure")
+            return original_read(self, *args, **kwargs)
+
+        with (
+            patch("empusa.cli.IS_UNIX", True),
+            patch("empusa.cli.IS_WINDOWS", False),
+            patch("empusa.cli.Path") as mock_path_cls,
+            patch.object(Path, "read_text", boom),
+        ):
+            mock_path_cls.home.return_value = tmp_path
+            # zshrc must not exist for the platform path to only hit bashrc.
+            result = _cleanup_shell_history()
+
+        assert result == []  # nothing cleaned, no exception escaped
+
+        captured = capsys.readouterr().out  # type: ignore[attr-defined]
+        assert "[WARN]" in captured
+        assert "Shell history cleanup failed" in captured
+        assert "simulated read failure" in captured
+        assert "Traceback" not in captured
+
+        # Idempotency: calling again still does not raise.
+        with (
+            patch("empusa.cli.IS_UNIX", True),
+            patch("empusa.cli.IS_WINDOWS", False),
+            patch("empusa.cli.Path") as mock_path_cls,
+            patch.object(Path, "read_text", boom),
+        ):
+            mock_path_cls.home.return_value = tmp_path
+            assert _cleanup_shell_history() == []
+
+        assert cli_mod is not None

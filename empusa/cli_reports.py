@@ -92,12 +92,18 @@ def _gather_env_host_data(env_path: Path) -> list[dict[str, Any]]:
                                     "version": port_match.group(4).strip(),
                                 }
                             )
-                except Exception:
-                    pass
+                except Exception as exc:
+                    log_info(
+                        f"[WARN] Skipping nmap enrichment for {entry.name}: {exc}",
+                        "yellow",
+                    )
 
             hosts.append(host_data)
-    except Exception:
-        pass
+    except Exception as exc:
+        log_info(
+            f"[WARN] Skipping host enumeration under {env_path}: {exc}",
+            "yellow",
+        )
 
     loot_file = env_path / "loot.json"
     if loot_file.exists():

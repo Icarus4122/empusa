@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Any
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -44,6 +44,12 @@ class TestLookupTables:
 
 
 class TestListModules:
+    @pytest.fixture(autouse=True)
+    def _clear_strict_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # Default-mode tests must be env-independent, even when the suite
+        # is launched under STRICT_MODULES=1.
+        monkeypatch.delenv("STRICT_MODULES", raising=False)
+
     def _make_module(
         self,
         base: Path,
@@ -133,6 +139,106 @@ class TestListModules:
             modules = list_modules()
 
         assert len(modules) == 0
+
+
+# -- STRICT_MODULES discovery validation ------------------------------
+
+
+class TestStrictModulesDiscovery:
+    """STRICT_MODULES=1 upgrades soft skips to hard ValueError failures."""
+
+    def _make_valid(self, base: Path, name: str = "ok_mod") -> Path:
+        mod = base / name
+        mod.mkdir()
+        (mod / "module.json").write_text(json.dumps({"name": name, "language": "c", "source": "main.c"}))
+        (mod / "main.c").write_text("// src")
+        return mod
+
+    def test_helper_reads_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from empusa.cli_modules import strict_modules_enabled
+
+        monkeypatch.delenv("STRICT_MODULES", raising=False)
+        assert strict_modules_enabled() is False
+
+        monkeypatch.setenv("STRICT_MODULES", "1")
+        assert strict_modules_enabled() is True
+
+        monkeypatch.setenv("STRICT_MODULES", "0")
+        assert strict_modules_enabled() is False
+
+        monkeypatch.setenv("STRICT_MODULES", "true")
+        assert strict_modules_enabled() is False
+
+    def test_default_skips_missing_required_field(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("STRICT_MODULES", raising=False)
+        bad = tmp_path / "no_lang"
+        bad.mkdir()
+        (bad / "module.json").write_text(json.dumps({"name": "no_lang", "source": "main.c"}))
+        with patch("empusa.cli_modules.MODULES_DIR", tmp_path):
+            modules = list_modules()
+        assert modules == []
+
+    def test_strict_missing_required_field_raises(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("STRICT_MODULES", "1")
+        bad = tmp_path / "no_lang"
+        bad.mkdir()
+        (bad / "module.json").write_text(json.dumps({"name": "no_lang", "source": "main.c"}))
+        with (
+            patch("empusa.cli_modules.MODULES_DIR", tmp_path),
+            pytest.raises(ValueError, match="missing required field"),
+        ):
+            list_modules()
+
+    def test_default_marks_source_missing(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("STRICT_MODULES", raising=False)
+        mod = tmp_path / "no_src"
+        mod.mkdir()
+        (mod / "module.json").write_text(json.dumps({"name": "no_src", "language": "c", "source": "missing.c"}))
+        with patch("empusa.cli_modules.MODULES_DIR", tmp_path):
+            modules = list_modules()
+        assert len(modules) == 1
+        assert modules[0]["_source_missing"] is True
+
+    def test_strict_missing_source_raises(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("STRICT_MODULES", "1")
+        mod = tmp_path / "no_src"
+        mod.mkdir()
+        (mod / "module.json").write_text(json.dumps({"name": "no_src", "language": "c", "source": "missing.c"}))
+        with (
+            patch("empusa.cli_modules.MODULES_DIR", tmp_path),
+            pytest.raises(ValueError, match="source file 'missing.c' not found"),
+        ):
+            list_modules()
+
+    def test_strict_malformed_manifest_raises(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("STRICT_MODULES", "1")
+        bad = tmp_path / "bad_json"
+        bad.mkdir()
+        (bad / "module.json").write_text("NOT JSON{{{")
+        with (
+            patch("empusa.cli_modules.MODULES_DIR", tmp_path),
+            pytest.raises(ValueError, match="malformed module.json"),
+        ):
+            list_modules()
+
+    def test_strict_passes_for_valid_modules(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("STRICT_MODULES", "1")
+        self._make_valid(tmp_path, "ok_one")
+        self._make_valid(tmp_path, "ok_two")
+        with patch("empusa.cli_modules.MODULES_DIR", tmp_path):
+            modules = list_modules()
+        assert {m["name"] for m in modules} == {"ok_one", "ok_two"}
+        assert all(m["_source_missing"] is False for m in modules)
+
+    def test_unset_restores_default(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        # Set then unset; verify discovery is forgiving again.
+        monkeypatch.setenv("STRICT_MODULES", "1")
+        monkeypatch.delenv("STRICT_MODULES", raising=False)
+        bad = tmp_path / "no_lang"
+        bad.mkdir()
+        (bad / "module.json").write_text(json.dumps({"name": "no_lang", "source": "main.c"}))
+        with patch("empusa.cli_modules.MODULES_DIR", tmp_path):
+            assert list_modules() == []
 
 
 # -- create_module_template -------------------------------------------
@@ -521,3 +627,461 @@ class TestValidateModule:
         mod = self._make_valid_mod(tmp_path)
         findings = _validate_module(mod)
         assert any("Artifact exists" in f["message"] for f in findings)
+
+
+# -- compile_module ---------------------------------------------------
+
+
+class TestCompileModule:
+    """Cover empusa.cli_modules.compile_module branches with mocked subprocess."""
+
+    def _make_module(self, base, name="mod_x", lang="c", source="main.c", with_source=True):
+        mod_dir = base / name
+        mod_dir.mkdir(parents=True)
+        manifest = {
+            "name": name,
+            "language": lang,
+            "source": source,
+            "compile_cmd": "gcc {source} -o {output}",
+        }
+        (mod_dir / "module.json").write_text(json.dumps(manifest))
+        if with_source:
+            (mod_dir / source).write_text("int main(void){return 0;}\n")
+        return {
+            "_path": str(mod_dir),
+            "name": name,
+            "language": lang,
+            "source": source,
+            "compile_cmd": manifest["compile_cmd"],
+        }
+
+    def test_missing_source_returns_false(self, tmp_path):
+        from empusa.cli_modules import compile_module
+
+        mod = self._make_module(tmp_path, with_source=False)
+        assert compile_module(mod) is False
+
+    def test_dry_run_returns_true_without_subprocess(self, tmp_path):
+        from empusa.cli_modules import CONFIG, compile_module
+
+        mod = self._make_module(tmp_path)
+        prev = CONFIG.get("dry_run", False)
+        CONFIG["dry_run"] = True
+        try:
+            with (
+                patch("empusa.cli_modules.subprocess.run") as mock_run,
+                patch("empusa.cli_modules.detect_compilers", return_value={"c": ["gcc"]}),
+            ):
+                assert compile_module(mod) is True
+                mock_run.assert_not_called()
+        finally:
+            CONFIG["dry_run"] = prev
+
+    def test_no_compile_cmd_returns_false(self, tmp_path):
+        from empusa.cli_modules import compile_module
+
+        mod = self._make_module(tmp_path)
+        mod["compile_cmd"] = ""
+        mod["language"] = "unknownlang"
+        assert compile_module(mod) is False
+
+    def test_successful_compile_writes_marker(self, tmp_path):
+        from empusa.cli_modules import compile_module
+
+        mod = self._make_module(tmp_path)
+        mod_path = Path(mod["_path"])
+
+        def fake_run(cmd, **kwargs):
+            # Simulate compiler producing the expected output binary
+            # (placeholder substitution must already have happened).
+            assert "{source}" not in cmd
+            assert "{output}" not in cmd
+            (mod_path / "build" / ("main.exe" if "main.exe" in cmd else "main")).write_bytes(b"\x7fELF")
+            r = MagicMock()
+            r.returncode = 0
+            r.stdout = ""
+            r.stderr = ""
+            return r
+
+        with (
+            patch("empusa.cli_modules.subprocess.run", side_effect=fake_run),
+            patch("empusa.cli_modules.which", return_value="/usr/bin/gcc"),
+            patch("empusa.cli_modules.detect_compilers", return_value={"c": ["gcc"]}),
+        ):
+            assert compile_module(mod) is True
+
+        marker = mod_path / "build" / ".build_ok"
+        assert marker.exists()
+        # Generated artifact stays under build/
+        artifacts = [p for p in (mod_path / "build").iterdir() if not p.name.startswith(".")]
+        assert artifacts
+        for a in artifacts:
+            assert mod_path / "build" in a.parents
+
+    def test_failed_compile_removes_marker_and_returns_false(self, tmp_path):
+        from empusa.cli_modules import compile_module
+
+        mod = self._make_module(tmp_path)
+        mod_path = Path(mod["_path"])
+        # Pre-existing stale marker
+        (mod_path / "build").mkdir(exist_ok=True)
+        marker = mod_path / "build" / ".build_ok"
+        marker.write_text("stale\n")
+
+        r = MagicMock()
+        r.returncode = 1
+        r.stdout = ""
+        r.stderr = "syntax error"
+        with (
+            patch("empusa.cli_modules.subprocess.run", return_value=r),
+            patch("empusa.cli_modules.which", return_value="/usr/bin/gcc"),
+            patch("empusa.cli_modules.detect_compilers", return_value={"c": ["gcc"]}),
+        ):
+            assert compile_module(mod) is False
+        assert not marker.exists()
+
+    def test_uses_services_runner_when_provided(self, tmp_path):
+        from empusa.cli_modules import compile_module
+
+        mod = self._make_module(tmp_path)
+        mod_path = Path(mod["_path"])
+
+        runner = MagicMock()
+        result = MagicMock()
+        result.returncode = 0
+        result.stdout = ""
+        result.stderr = ""
+
+        # Simulate runner producing the artifact too
+        def runner_side(cmd, **kw):
+            (mod_path / "build" / "main").write_bytes(b"\x7fELF")
+            return result
+
+        runner.run.side_effect = runner_side
+        services = MagicMock()
+        services.runner = runner
+
+        with (
+            patch("empusa.cli_modules.subprocess.run") as direct_run,
+            patch("empusa.cli_modules.which", return_value="/usr/bin/gcc"),
+            patch("empusa.cli_modules.detect_compilers", return_value={"c": ["gcc"]}),
+        ):
+            assert compile_module(mod, services=services) is True
+            direct_run.assert_not_called()
+        runner.run.assert_called_once()
+
+    def test_placeholders_resolved_in_command(self, tmp_path):
+        from empusa.cli_modules import compile_module
+
+        mod = self._make_module(tmp_path)
+        mod["compile_cmd"] = "gcc {source} -o {output} -B{build_dir} -I{source_dir}"
+        mod_path = Path(mod["_path"])
+
+        captured = {}
+
+        def fake_run(cmd, **kwargs):
+            captured["cmd"] = cmd
+            (mod_path / "build" / "main").write_bytes(b"\x7fELF")
+            r = MagicMock()
+            r.returncode = 0
+            r.stdout = ""
+            r.stderr = ""
+            return r
+
+        with (
+            patch("empusa.cli_modules.subprocess.run", side_effect=fake_run),
+            patch("empusa.cli_modules.which", return_value="/usr/bin/gcc"),
+            patch("empusa.cli_modules.detect_compilers", return_value={"c": ["gcc"]}),
+        ):
+            compile_module(mod)
+
+        cmd = captured["cmd"]
+        assert "{source}" not in cmd and "{output}" not in cmd
+        assert "{build_dir}" not in cmd and "{source_dir}" not in cmd
+        assert str(mod_path) in cmd
+
+
+# -- _list_modules_render --------------------------------------------
+
+
+class TestListModulesRender:
+    def test_no_modules(self, tmp_path: Path) -> None:
+        from empusa.cli_modules import _list_modules_render
+
+        with patch("empusa.cli_modules.MODULES_DIR", tmp_path):
+            out = _list_modules_render()
+        assert "No modules found" in str(out)
+
+    def test_with_modules_returns_table(self, tmp_path: Path) -> None:
+        from empusa.cli_modules import _list_modules_render
+
+        m = tmp_path / "demo"
+        m.mkdir()
+        (m / "module.json").write_text(
+            json.dumps({"name": "demo", "language": "c", "source": "main.c", "description": "x"})
+        )
+        (m / "main.c").write_text("int main(){return 0;}\n")
+        with patch("empusa.cli_modules.MODULES_DIR", tmp_path):
+            out = _list_modules_render()
+        assert hasattr(out, "columns")  # Rich Table
+
+    def test_filter_no_match(self, tmp_path: Path) -> None:
+        from empusa.cli_modules import _list_modules_render
+
+        m = tmp_path / "demo"
+        m.mkdir()
+        (m / "module.json").write_text(
+            json.dumps({"name": "demo", "language": "c", "source": "main.c", "description": "x"})
+        )
+        (m / "main.c").write_text("x")
+        with patch("empusa.cli_modules.MODULES_DIR", tmp_path):
+            out = _list_modules_render(filter_language="rust")
+        assert "No modules match" in str(out)
+
+    def test_filter_built_keyword_os(self, tmp_path: Path) -> None:
+        from empusa.cli_modules import _list_modules_render
+
+        m = tmp_path / "demo"
+        m.mkdir()
+        (m / "module.json").write_text(
+            json.dumps(
+                {
+                    "name": "demo",
+                    "language": "c",
+                    "source": "main.c",
+                    "description": "alpha",
+                    "target_os": "linux",
+                }
+            )
+        )
+        (m / "main.c").write_text("x")
+        with patch("empusa.cli_modules.MODULES_DIR", tmp_path):
+            out = _list_modules_render(
+                filter_language="c",
+                filter_built=False,
+                filter_target_os="linux",
+                filter_keyword="alpha",
+            )
+        assert hasattr(out, "columns")
+
+
+# -- _detect_compilers_render -----------------------------------------
+
+
+class TestDetectCompilersRender:
+    def test_returns_table(self) -> None:
+        from empusa.cli_modules import _detect_compilers_render
+
+        with patch("empusa.cli_modules.detect_compilers", return_value={"c": ["gcc"]}):
+            tbl = _detect_compilers_render()
+        assert hasattr(tbl, "columns")
+        assert tbl.caption is not None
+
+    def test_empty_compilers(self) -> None:
+        from empusa.cli_modules import _detect_compilers_render
+
+        with patch("empusa.cli_modules.detect_compilers", return_value={}):
+            tbl = _detect_compilers_render()
+        assert hasattr(tbl, "columns")
+
+
+# -- _open_directory --------------------------------------------------
+
+
+class TestOpenDirectory:
+    def test_headless_linux_returns_false(self, tmp_path: Path, monkeypatch) -> None:
+        from empusa.cli_modules import _open_directory
+
+        monkeypatch.delenv("DISPLAY", raising=False)
+        monkeypatch.delenv("WAYLAND_DISPLAY", raising=False)
+        with (
+            patch("empusa.cli_modules.IS_WINDOWS", False),
+            patch("empusa.cli_modules.platform.system", return_value="Linux"),
+        ):
+            assert _open_directory(tmp_path) is False
+
+    def test_linux_xdg_open_success(self, tmp_path: Path, monkeypatch) -> None:
+        from empusa.cli_modules import _open_directory
+
+        monkeypatch.setenv("DISPLAY", ":0")
+        result = MagicMock()
+        result.returncode = 0
+        with (
+            patch("empusa.cli_modules.IS_WINDOWS", False),
+            patch("empusa.cli_modules.platform.system", return_value="Linux"),
+            patch("empusa.cli_modules.shutil.which", return_value="/usr/bin/xdg-open"),
+            patch("empusa.cli_modules.subprocess.run", return_value=result) as r,
+        ):
+            assert _open_directory(tmp_path) is True
+            r.assert_called_once()
+
+    def test_exception_returns_false(self, tmp_path: Path) -> None:
+        from empusa.cli_modules import _open_directory
+
+        with (
+            patch("empusa.cli_modules.IS_WINDOWS", False),
+            patch("empusa.cli_modules.platform.system", side_effect=RuntimeError("boom")),
+        ):
+            assert _open_directory(tmp_path) is False
+
+
+# -- module_info (interactive, mocked Prompt) ------------------------
+
+
+class TestModuleInfo:
+    def _make_mod(self, base: Path) -> dict[str, Any]:
+        mod_dir = base / "demo"
+        mod_dir.mkdir()
+        manifest = {
+            "name": "demo",
+            "language": "c",
+            "source": "main.c",
+            "description": "demo",
+            "compile_cmd": "gcc {source} -o {output}",
+        }
+        (mod_dir / "module.json").write_text(json.dumps(manifest))
+        (mod_dir / "main.c").write_text("int main(){return 0;}\n")
+        return {
+            "_path": str(mod_dir),
+            "name": "demo",
+            "language": "c",
+            "source": "main.c",
+            "description": "demo",
+            "compile_cmd": manifest["compile_cmd"],
+            "_compiled": False,
+        }
+
+    @patch("empusa.cli_modules.Prompt")
+    def test_back_immediately(self, mock_prompt: MagicMock, tmp_path: Path) -> None:
+        from empusa.cli_modules import module_info
+
+        mock_prompt.ask.return_value = "0"
+        module_info(self._make_mod(tmp_path))
+
+    @patch("empusa.cli_modules.Prompt")
+    def test_show_build_command_then_back(self, mock_prompt: MagicMock, tmp_path: Path) -> None:
+        from empusa.cli_modules import module_info
+
+        mock_prompt.ask.side_effect = ["1", "0"]
+        module_info(self._make_mod(tmp_path))
+
+    @patch("empusa.cli_modules.Prompt")
+    def test_show_launch_then_back(self, mock_prompt: MagicMock, tmp_path: Path) -> None:
+        from empusa.cli_modules import module_info
+
+        mock_prompt.ask.side_effect = ["2", "0"]
+        module_info(self._make_mod(tmp_path))
+
+    @patch("empusa.cli_modules.Prompt")
+    @patch("empusa.cli_modules._open_directory", return_value=True)
+    def test_open_build_folder(self, _od: MagicMock, mock_prompt: MagicMock, tmp_path: Path) -> None:
+        from empusa.cli_modules import module_info
+
+        mock_prompt.ask.side_effect = ["3", "0"]
+        module_info(self._make_mod(tmp_path))
+
+    @patch("empusa.cli_modules.Prompt")
+    def test_source_preview(self, mock_prompt: MagicMock, tmp_path: Path) -> None:
+        from empusa.cli_modules import module_info
+
+        mock_prompt.ask.side_effect = ["4", "0"]
+        module_info(self._make_mod(tmp_path))
+
+    @patch("empusa.cli_modules.Prompt")
+    def test_validate(self, mock_prompt: MagicMock, tmp_path: Path) -> None:
+        from empusa.cli_modules import module_info
+
+        mock_prompt.ask.side_effect = ["6", "0"]
+        module_info(self._make_mod(tmp_path))
+
+    @patch("empusa.cli_modules.Prompt")
+    def test_show_manifest(self, mock_prompt: MagicMock, tmp_path: Path) -> None:
+        from empusa.cli_modules import module_info
+
+        mock_prompt.ask.side_effect = ["7", "0"]
+        module_info(self._make_mod(tmp_path))
+
+    @patch("empusa.cli_modules.Prompt")
+    def test_last_build_no_meta(self, mock_prompt: MagicMock, tmp_path: Path) -> None:
+        from empusa.cli_modules import module_info
+
+        mock_prompt.ask.side_effect = ["8", "0"]
+        module_info(self._make_mod(tmp_path))
+
+    @patch("empusa.cli_modules.Prompt")
+    def test_last_build_with_meta(self, mock_prompt: MagicMock, tmp_path: Path) -> None:
+        from empusa.cli_modules import module_info
+
+        mod = self._make_mod(tmp_path)
+        build_dir = Path(mod["_path"]) / "build"
+        build_dir.mkdir(exist_ok=True)
+        (build_dir / ".build_meta.json").write_text(
+            json.dumps(
+                {
+                    "status": "success",
+                    "command": "gcc main.c -o demo",
+                    "exit_code": 0,
+                    "timestamp": "2025-01-01T00:00:00",
+                    "duration_s": 0.1,
+                    "artifact_path": str(build_dir / "demo"),
+                    "module_name": "demo",
+                    "language": "c",
+                }
+            )
+        )
+        mock_prompt.ask.side_effect = ["8", "0"]
+        module_info(mod)
+
+
+# -- module_workshop (interactive, mocked Prompt) --------------------
+
+
+class TestModuleWorkshop:
+    @patch("empusa.cli_modules.Prompt")
+    def test_back_immediately(self, mock_prompt: MagicMock, tmp_path: Path) -> None:
+        from empusa.cli_modules import module_workshop
+
+        mock_prompt.ask.return_value = "0"
+        with patch("empusa.cli_modules.MODULES_DIR", tmp_path):
+            module_workshop()
+
+    @patch("empusa.cli_modules.Prompt")
+    def test_list_then_back(self, mock_prompt: MagicMock, tmp_path: Path) -> None:
+        from empusa.cli_modules import module_workshop
+
+        mock_prompt.ask.side_effect = ["1", "0"]
+        with patch("empusa.cli_modules.MODULES_DIR", tmp_path):
+            module_workshop()
+
+    @patch("empusa.cli_modules.Prompt")
+    def test_compile_no_modules(self, mock_prompt: MagicMock, tmp_path: Path) -> None:
+        from empusa.cli_modules import module_workshop
+
+        mock_prompt.ask.side_effect = ["2", "0"]
+        with patch("empusa.cli_modules.MODULES_DIR", tmp_path):
+            module_workshop()
+
+    @patch("empusa.cli_modules.Prompt")
+    def test_compile_all_no_modules(self, mock_prompt: MagicMock, tmp_path: Path) -> None:
+        from empusa.cli_modules import module_workshop
+
+        mock_prompt.ask.side_effect = ["3", "0"]
+        with patch("empusa.cli_modules.MODULES_DIR", tmp_path):
+            module_workshop()
+
+    @patch("empusa.cli_modules.Prompt")
+    def test_detect_compilers_branch(self, mock_prompt: MagicMock, tmp_path: Path) -> None:
+        from empusa.cli_modules import module_workshop
+
+        mock_prompt.ask.side_effect = ["6", "0"]
+        with patch("empusa.cli_modules.MODULES_DIR", tmp_path):
+            module_workshop()
+
+    @patch("empusa.cli_modules.Prompt")
+    @patch("empusa.cli_modules._open_directory", return_value=True)
+    def test_open_modules_folder(self, _od: MagicMock, mock_prompt: MagicMock, tmp_path: Path) -> None:
+        from empusa.cli_modules import module_workshop
+
+        mock_prompt.ask.side_effect = ["7", "0"]
+        with patch("empusa.cli_modules.MODULES_DIR", tmp_path):
+            module_workshop()

@@ -275,7 +275,7 @@ def _cleanup_shell_history() -> list[str]:
             cleaned_files.append(str(rc))
             log_verbose(f"Removed Empusa logging hooks from {rc}", "green")
         except Exception as e:
-            log_verbose(f"Warning: Could not clean {rc}: {e}", "yellow")
+            log_info(f"[WARN] Shell history cleanup failed for {rc}: {e}", "yellow")
 
     return cleaned_files
 
