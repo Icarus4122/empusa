@@ -47,6 +47,29 @@ from empusa.cli_common import (
     render_screen,
     set_console,
 )
+from empusa.cli_directory import (
+    cmd_directory_aliases,
+    cmd_directory_enumerate,
+    cmd_directory_inspect,
+    cmd_directory_memberships,
+    cmd_directory_neighbors,
+    register_directory_parser,
+)
+from empusa.cli_evidentia import (
+    cmd_evidentia_audit,
+    cmd_evidentia_ingest,
+    cmd_evidentia_ingest_provenance,
+    cmd_evidentia_inspect_build_runs,
+    cmd_evidentia_inspect_failures,
+    cmd_evidentia_inspect_provenance,
+    cmd_evidentia_quickflow,
+    cmd_evidentia_replay,
+    cmd_evidentia_report,
+    cmd_evidentia_run,
+    cmd_evidentia_status,
+    cmd_evidentia_workspace_summary,
+    register_evidentia_parser,
+)
 from empusa.cli_hooks import (
     create_hook_ui,
     delete_hook_ui,
@@ -1003,6 +1026,76 @@ def _cmd_workspace(args: argparse.Namespace, parser: argparse.ArgumentParser) ->
     return rc
 
 
+def _cmd_evidentia(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+    """Non-interactive Evidentia workflow subcommand dispatcher."""
+    action = getattr(args, "ev_action", None)
+    if action is None:
+        parser.parse_args(["evidentia", "--help"])
+        return 1
+
+    _init_framework()
+
+    rc: int
+    if action == "ingest":
+        rc = cmd_evidentia_ingest(args)
+    elif action == "ingest-provenance":
+        rc = cmd_evidentia_ingest_provenance(args)
+    elif action == "inspect-provenance":
+        rc = cmd_evidentia_inspect_provenance(args)
+    elif action == "inspect-build-runs":
+        rc = cmd_evidentia_inspect_build_runs(args)
+    elif action == "inspect-failures":
+        rc = cmd_evidentia_inspect_failures(args)
+    elif action == "workspace-summary":
+        rc = cmd_evidentia_workspace_summary(args)
+    elif action == "report":
+        rc = cmd_evidentia_report(args)
+    elif action == "replay":
+        rc = cmd_evidentia_replay(args)
+    elif action == "audit":
+        rc = cmd_evidentia_audit(args)
+    elif action == "status":
+        rc = cmd_evidentia_status(args)
+    elif action == "quickflow":
+        rc = cmd_evidentia_quickflow(args)
+    elif action == "run":
+        rc = cmd_evidentia_run(args)
+    else:
+        parser.parse_args(["evidentia", "--help"])
+        rc = 1
+
+    _shutdown()
+    return rc
+
+
+def _cmd_directory(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+    """Non-interactive directory enumeration subcommand dispatcher (Phase 21)."""
+    action = getattr(args, "dir_action", None)
+    if action is None:
+        parser.parse_args(["directory", "--help"])
+        return 1
+
+    _init_framework()
+
+    rc: int
+    if action == "enumerate":
+        rc = cmd_directory_enumerate(args)
+    elif action == "inspect":
+        rc = cmd_directory_inspect(args)
+    elif action == "neighbors":
+        rc = cmd_directory_neighbors(args)
+    elif action == "memberships":
+        rc = cmd_directory_memberships(args)
+    elif action == "aliases":
+        rc = cmd_directory_aliases(args)
+    else:
+        parser.parse_args(["directory", "--help"])
+        rc = 1
+
+    _shutdown()
+    return rc
+
+
 def main() -> None:
     """Main entry point for the Empusa CLI."""
     from empusa import __version__
@@ -1091,6 +1184,12 @@ def main() -> None:
     # empusa workspace init|list|select|status
     register_workspace_parser(subparsers)
 
+    # empusa evidentia ingest|replay|audit
+    register_evidentia_parser(subparsers)
+
+    # empusa directory enumerate (Phase 21)
+    register_directory_parser(subparsers)
+
     args = parser.parse_args()
 
     # Update global configuration
@@ -1135,6 +1234,11 @@ def main() -> None:
             return
     elif args.command == "workspace":
         raise SystemExit(_cmd_workspace(args, parser))
+    elif args.command == "evidentia":
+        raise SystemExit(_cmd_evidentia(args, parser))
+
+    elif args.command == "directory":
+        raise SystemExit(_cmd_directory(args, parser))
 
     # -- No subcommand: interactive mode -----------------------------
     _init_framework()

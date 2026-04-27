@@ -7,7 +7,7 @@ import os
 import re
 import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import (
     TYPE_CHECKING,
@@ -31,6 +31,7 @@ from empusa.cli_common import (
     log_verbose,
     sanitize_filename,
 )
+from empusa.provenance import emit_build_envelope
 from empusa.workspace import BuildLayout, ensure_build_layout
 
 if TYPE_CHECKING:
@@ -645,6 +646,10 @@ def build_env(
                 )
                 return None
 
+    # Capture build start for the provenance envelope; this happens
+    # *before* any scan I/O so the timestamp reflects the actual run start.
+    _build_started_at = datetime.now(timezone.utc)
+
     # -- Scaffold directories via workspace module -------------------
     layout = ensure_build_layout(env_name, valid_ips, workspace_path=workspace_path)
 
@@ -733,5 +738,25 @@ def build_env(
                 "ips": valid_ips,
             },
         )
+
+    # -- Provenance envelope (best-effort, non-fatal) ----------------
+    # Wire-compatible with Evidentia's build.provenance_envelope schema.
+    # Never allowed to fail the build: provenance is evidence, not control.
+    try:
+        log_artifacts: list[str] = [str(layout.commands_log)]
+        output_artifacts: list[str] = [str(p) for p in scan_results.values()]
+        emit_build_envelope(
+            command_name="build_env",
+            workspace_path=workspace_path,
+            artifacts_dir=layout.commands_log.parent,
+            started_at=_build_started_at,
+            completed_at=datetime.now(timezone.utc),
+            exit_code=0,
+            argv=["build_env", env_name, *valid_ips],
+            output_artifact_refs=output_artifacts,
+            log_artifact_refs=log_artifacts,
+        )
+    except Exception as e:  # noqa: BLE001 - provenance must never break build
+        log_verbose(f"Warning: could not emit provenance envelope: {e}", "yellow")
 
     return layout

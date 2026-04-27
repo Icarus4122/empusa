@@ -43,6 +43,7 @@ It is built around four core ideas:
 - [Workspaces](#workspaces)
 - [Interactive Menu](#interactive-menu)
 - [Non-Interactive Commands](#non-interactive-commands)
+- [Evidentia integration](#evidentia-integration)
 - [Environment Layout](#environment-layout)
 - [Hooks](#hooks)
 - [Plugins](#plugins)
@@ -474,6 +475,159 @@ empusa report --env acme --assessment "Acme Internal Assessment"
 ```bash
 empusa plugins refresh
 ```
+
+---
+
+## Evidentia integration
+
+Empusa optionally drives the [Evidentia](https://github.com/Icarus4122/Evidentia)
+evidence runtime through a thin CLI wrapper. The wrapper is the **only**
+path in Empusa permitted to invoke the `evidentia` binary; it never
+imports Evidentia source, never opens Evidentia's Badger store, and
+never reshapes Evidentia's stdout. The full consumer-side contract
+lives at `docs/integration/empusa-evidentia.md` in the
+[`Icarus4122/Evidentia`](https://github.com/Icarus4122/Evidentia)
+repository.
+
+The `evidentia` binary must already be installed and on `PATH` (or at
+Hecate's canonical toolchain location, `${LAB_ROOT}/tools/binaries/evidentia/evidentia`).
+Empusa does not install or update Evidentia.
+
+### Recommended quick flows
+
+For most operators the two highest-level wrappers are enough:
+
+```bash
+# Ingest a JSONL file then run a read-only replay in one step.
+empusa evidentia quickflow --workspace PATH --jsonl FILE [--binary BIN] [--db-path DIR]
+
+# Compose a workspace-level evidence report (workspace-summary + replay).
+empusa evidentia report    --workspace PATH                [--binary BIN] [--db-path DIR]
+```
+
+`quickflow` replaces the older `run` alias. `run` still works but is
+deprecated and prints a deprecation notice; new automation should use
+`quickflow`.
+
+### Subcommands
+
+```bash
+empusa evidentia ingest             --workspace PATH --jsonl FILE  [--binary BIN] [--db-path DIR]
+empusa evidentia ingest-provenance  --workspace PATH --file FILE   [--binary BIN] [--db-path DIR]
+empusa evidentia inspect-provenance --workspace PATH               [--binary BIN] [--db-path DIR]
+empusa evidentia inspect-build-runs --workspace PATH               [--binary BIN] [--db-path DIR]
+empusa evidentia inspect-failures   --workspace PATH               [--limit N] [--pretty] [--binary BIN] [--db-path DIR]
+empusa evidentia workspace-summary  --workspace PATH               [--binary BIN] [--db-path DIR]
+empusa evidentia report             --workspace PATH               [--binary BIN] [--db-path DIR]
+empusa evidentia replay             --workspace PATH               [--binary BIN] [--db-path DIR]
+                                                          [--write --confirm-write]
+empusa evidentia audit              --workspace PATH --run-id ID   [--binary BIN] [--db-path DIR]
+empusa evidentia status             --workspace PATH
+empusa evidentia quickflow          --workspace PATH --jsonl FILE  [--binary BIN] [--db-path DIR]
+empusa evidentia run                --workspace PATH --jsonl FILE  [--binary BIN] [--db-path DIR]
+```
+
+| Subcommand | Purpose |
+| --- | --- |
+| `evidentia ingest` | Pass an existing JSONL file to `evidentia ingest jsonl` and persist the JSON summary as an artifact. |
+| `evidentia ingest-provenance` | Hand a `build.provenance_envelope` JSON artifact to `evidentia ingest build-provenance`. |
+| `evidentia inspect-provenance` | Surface ingested `build.provenance_envelope` summaries via `evidentia inspect build-provenance`. |
+| `evidentia inspect-build-runs` | Surface materialized `build_run` entity summaries via `evidentia inspect build-runs`. |
+| `evidentia inspect-failures` | Surface `schema.validation_failed` events via `evidentia inspect failures`. Read-only; persists the JSON array byte-for-byte under `artifacts/evidentia/inspect-failures-*.json`. Accepts `--limit N` and `--pretty`. |
+| `evidentia workspace-summary` | Workspace-level snapshot of Evidentia state via `evidentia inspect workspace-summary`. |
+| `evidentia report` | Empusa-side composition of `workspace-summary` and `replay`. Writes a NEW `report-<timestamp>.json` artifact whose body references the underlying raw artifacts and lists operator-relevant warnings. Runs `replay` with `write=False` so the report stays read-only. |
+| `evidentia replay` | Run `evidentia replay`; surfaces the top-level `diffs` count for divergence alerting (no schema interpretation). The default form is read-only. `--write` materializes derived entities into the live state store and is destructive; it is rejected unless `--confirm-write` is also passed. Passing `--confirm-write` without `--write` is also rejected. |
+| `evidentia audit`  | Fetch a capability-run audit report by run identifier and persist it as an artifact. |
+| `evidentia status` | Artifact-only local status; does not query the Evidentia store. Read-only roll-up of the latest ingest, replay, and audit artifacts already present under `<workspace>/artifacts/evidentia/`. Launches no subprocess and requires no Evidentia binary. Reads only top-level summary fields (`accepted`/`failed` for ingest, `diffs` length for replay, artifact path for audit). |
+| `evidentia quickflow` | Convenience wrapper that runs `evidentia ingest` then `evidentia replay` (read-only) against the same workspace and binary. Artifacts are produced exactly as if each subcommand were run individually; the first non-zero exit code is propagated. |
+| `evidentia run`    | **Deprecated** alias for `quickflow`; will be removed in a future phase. Prints a deprecation notice and delegates to `quickflow`. |
+
+For the `report` warning codes (`schema_failures_present`,
+`replay_diverged`, `no_build_runs`, `directory_empty`) and the
+recommended follow-up commands, see
+[`docs/troubleshooting-evidentia.md`](docs/troubleshooting-evidentia.md).
+
+### Common flags
+
+| Flag | Default | Purpose |
+| --- | --- | --- |
+| `--workspace PATH` | required | Workspace root that owns the Evidentia store and artifact directory. |
+| `--binary BIN` | `$EVIDENTIA_BINARY` if set, else `evidentia` | Override the binary path. Absolute paths bypass `PATH` and Hecate's toolchain lookup; otherwise `PATH` is consulted, then `${LAB_ROOT}/tools/binaries/evidentia/evidentia`. |
+| `--db-path DIR` | `$EVIDENTIA_DB_PATH` if set, else `<workspace>/evidentia.db` | Override the Badger store directory passed to `evidentia --store badger --path <dir>`. |
+| `--jsonl FILE` | required (`ingest`, `quickflow`, `run`) | Path to the JSONL file that Empusa hands to Evidentia. Empusa never fabricates observation payloads. |
+| `--file FILE` | required (`ingest-provenance`) | Path to the `build.provenance_envelope` JSON artifact handed to `evidentia ingest build-provenance`. |
+| `--run-id ID` | required (`audit`) | Capability run identifier to fetch. |
+| `--write` | `replay` only | Materialize derived entities into the live state store. Destructive; rejected unless `--confirm-write` is also passed. |
+| `--confirm-write` | `replay` only | Required co-flag for `--write`; acknowledges live-store mutation. Rejected if passed without `--write`. |
+
+### Environment variables
+
+The Empusa wrapper and Hecate's `verify-host.sh` honor the same
+shared environment contract (Phase 18). The CLI flag always wins;
+the environment variable wins over the discovery fallbacks.
+
+| Variable | Consumer | Purpose | Resolution precedence |
+| --- | --- | --- | --- |
+| `EVIDENTIA_BINARY` | Empusa, Hecate | Pin a specific `evidentia` binary path. | `--binary` > `EVIDENTIA_BINARY` > `PATH` > `${LAB_ROOT}/tools/binaries/evidentia/evidentia[.exe]` |
+| `EVIDENTIA_DB_PATH` | Empusa | Override the Badger store directory. | `--db-path` > `EVIDENTIA_DB_PATH` > `<workspace>/evidentia.db` |
+| `LAB_ROOT` | Empusa, Hecate | Hecate toolchain root used for the binary fallback. | n/a (only consulted as part of the binary fallback) |
+
+Empty or whitespace-only values are ignored, so an unset-style
+export (`export EVIDENTIA_BINARY=`) does not poison resolution.
+
+### Artifact output
+
+On success, Evidentia's stdout is persisted byte-for-byte under:
+
+```text
+<workspace>/artifacts/evidentia/<kind>[-<ref>]-<timestamp>.json
+```
+
+Each artifact is accompanied by a `<artifact>.meta.json` sidecar
+recording the resolved `evidentia_version`, the exact argv that was
+executed, the exit code, and the UTC creation timestamp. On a runtime
+failure (`exit 1`), Evidentia's stderr is persisted alongside the
+sidecar instead, and Empusa surfaces the failure with the captured
+exit code. Usage errors (`exit 2`) are never auto-retried.
+
+### Directory enumeration workflows
+
+Empusa exposes a non-interactive `directory` subcommand that wraps
+the Evidentia ingest, replay, and inspect surface for AD-style
+exports. It shells out to the `evidentia` binary only -- no
+direct store access, no payload reshaping. See
+[`docs/directory.md`](https://github.com/Icarus4122/Evidentia/blob/main/docs/directory.md)
+in the Evidentia repository for the underlying CLI contract and the
+canonical key format used by the relationship views.
+
+```bash
+empusa directory enumerate    --workspace PATH --input FILE --format {powershell,ldap} \
+                              [--no-replay] [--binary BIN] [--db-path DIR]
+empusa directory inspect      --workspace PATH --type {users,groups,computers,relationships} \
+                              [--limit N] [--pretty] [--binary BIN] [--db-path DIR]
+empusa directory neighbors    --workspace PATH --key CANONICAL_KEY \
+                              [--limit N] [--pretty] [--binary BIN] [--db-path DIR]
+empusa directory memberships  --workspace PATH --key CANONICAL_KEY \
+                              [--limit N] [--pretty] [--binary BIN] [--db-path DIR]
+```
+
+| Subcommand              | Evidentia call                                    | Operator-visible output                  |
+| ----------------------- | ------------------------------------------------- | ---------------------------------------- |
+| `directory enumerate`   | `ingest powershell-ad`/`ingest ldap` then `replay` | `accepted` / `failed` counts, diff count |
+| `directory inspect`     | `inspect directory <type>`                        | Records count, artifact path             |
+| `directory neighbors`   | `inspect directory neighbors <key>`               | Records count, artifact path             |
+| `directory memberships` | `inspect directory memberships <key>`             | Records count, artifact path             |
+
+`neighbors` returns every one-hop edge that touches the supplied
+canonical key. `memberships` is the same filter restricted to
+`member_of` edges, so the same command answers both
+"what groups is this user in?" (key = user DN) and "who is in this
+group?" (key = group DN). An unknown key returns an empty list with
+exit 0; it is not an error.
+
+Sample fixtures suitable for smoke-testing the workflow live in the
+Evidentia repository under
+[`examples/directory/`](https://github.com/Icarus4122/Evidentia/tree/main/examples/directory).
 
 ---
 

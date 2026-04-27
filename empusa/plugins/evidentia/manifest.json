@@ -1,0 +1,10 @@
+{
+  "name": "evidentia",
+  "version": "0.1.0",
+  "author": "Empusa",
+  "description": "Wraps the empusa.evidentia bridge as first-class capabilities (ingest jsonl, replay, audit capability-run). Delegates only to the wrapper; does not import Evidentia source, open Badger, retry on usage errors, or rewrite stdout JSON.",
+  "events": [],
+  "requires": [],
+  "permissions": ["subprocess", "filesystem"],
+  "enabled": true
+}
